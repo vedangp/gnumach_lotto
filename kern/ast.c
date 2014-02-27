@@ -35,6 +35,7 @@
  *
  */
 
+#include <mach_lotto.h>
 #include <kern/ast.h>
 #include <kern/counters.h>
 #include <kern/debug.h>
@@ -48,10 +49,13 @@
 
 #include <machine/machspl.h>	/* for splsched */
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 #include <mach/policy.h>
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#endif	/*MACH_LOTTO*/
 
 volatile ast_t need_ast[NCPUS];
 
@@ -171,8 +175,9 @@ ast_check(void)
 		/*
 		 *	Update lazy evaluated runq->low if only timesharing.
 		 */
-#if	MACH_FIXPRI
-		if (myprocessor->processor_set->policies & POLICY_FIXEDPRI) {
+#if	MACH_FIXPRI || MACH_LOTTO
+		if (myprocessor->processor_set->policies 
+		& (POLICY_FIXEDPRI | POLICY_LOTTO)) {
 		    if (csw_needed(thread,myprocessor)) {
 			ast_on(mycpu, AST_BLOCK);
 			break;
@@ -187,7 +192,7 @@ ast_check(void)
 		    }
 		}
 		else {
-#endif	/* MACH_FIXPRI			 */
+#endif	/* MACH_FIXPRI	|| MACH_LOTTO		 */
 		rq = &(myprocessor->processor_set->runq);
 		if (!(myprocessor->first_quantum) && (rq->count > 0)) {
 		    queue_t 		q;
@@ -212,6 +217,13 @@ ast_check(void)
 				q++;
 			    }
 			    rq->low = i;
+
+#if	MACH_LOTTO
+			    /* prevent overflow */
+			    if (rq->low > LAST_VALID_RUNQ)
+			      rq->low = LAST_VALID_RUNQ;
+#endif	/*MACH_LOTTO*/
+
 			}
 			simple_unlock(&rq->lock);
 		    }
@@ -221,7 +233,7 @@ ast_check(void)
 			break;
 		    }
 		}
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 		}
 #endif	/* MACH_FIXPRI */
 		break;

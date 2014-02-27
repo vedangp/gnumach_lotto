@@ -150,6 +150,11 @@ void thread_quantum_update(mycpu, thread, nticks, state)
 		if (myprocessor->quantum <= 0) {
 			s = splsched();
 			thread_lock(thread);
+
+#if	MACH_LOTTO
+			thread->lotto_quantum_used += nticks;
+#endif	/*MACH_LOTTO*/
+
 			if (thread->sched_stamp != sched_tick) {
 				update_priority(thread);
 			}
@@ -193,6 +198,11 @@ void thread_quantum_update(mycpu, thread, nticks, state)
 		else {
 		    s = splsched();
 		    thread_lock(thread);
+
+#if	MACH_LOTTO
+		    thread->lotto_quantum_used += nticks;
+#endif	/*MACH_LOTTO*/
+
 		    if (thread->sched_stamp != sched_tick) {
 			update_priority(thread);
 		    }

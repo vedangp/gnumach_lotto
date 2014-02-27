@@ -1,0 +1,71 @@
+/*
+ * Copyright (c) 1993, 1994  Carl A. Waldspurger.
+ * All Rights Reserved.
+ * 
+ * Permission to use, copy, modify and distribute this software and its
+ * documentation is hereby granted, provided that both the copyright
+ * notice and this permission notice appear in all copies of the
+ * software, derivative works or modified versions, and any portions
+ * thereof, and that both notices appear in supporting documentation.
+ * 
+ * CARL WALDSPURGER ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+ * CONDITION, BUT DISCLAIMS ANY LIABILITY OF ANY KIND FOR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+ * 
+ * It is requested that users of this software return any improvements
+ * they make and grant the rights to redistribute these changes to:
+ * 
+ * Carl Waldspurger			or   carl@lcs.mit.edu
+ * MIT Laboratory for Computer Science
+ * 545 Technology Square, Room 206
+ * Cambridge, MA 02139
+ *
+ */
+
+/*
+ * Project:	Mach Lottery Scheduler (Kernel Modifications)
+ * Module:	Lotto Type Definitions (for MIG-based IPC)
+ * Author:	Carl Waldspurger
+ * History:
+ *	
+ *	16-May-94	Expanded lotto_metrics_info definition.
+ *	19-Apr-94	Defined lotto_quantum_metrics_t.
+ *	12-Apr-94	Defined lotto_ipc_id_t.
+ *	08-Apr-94	Expanded lotto_ipc_metrics_info definition.
+ *	03-Apr-94	Modified lotto_ipc_metrics_info definition.
+ *	01-Apr-94	Defined lotto_ipc_metrics_info.
+ *	01-Feb-94	Added undepress_count field to lotto_metrics_info.
+ * 	28-Jan-94	Added flavor field to lotto_ticket_info.
+ *	18-Jan-94	Minor modifications.
+ *	13-Jan-94	Defined lotto_currency_id_array_t.
+ *	12-Jan-94	Modified info and metric types.
+ *	09-Jan-94	Defined lotto_{ticket,currency}_info_data_t types.
+ *	20-Dec-93	Defined id types.
+ *	29-Oct-93	Separated from mach_lotto.defs.
+ *
+ */
+
+/* id types */
+type lotto_id_t			= unsigned;
+type lotto_currency_id_t	= lotto_id_t;
+type lotto_ticket_id_t		= lotto_id_t;
+type lotto_ipc_id_t		= lotto_id_t;
+
+/* id array types */
+type lotto_currency_id_array_t	= array [* : 1024] of lotto_currency_id_t;
+
+/* name types */
+type lotto_currency_name_t	= (MACH_MSG_TYPE_STRING, 64*8);
+
+/* funds type */
+type lotto_funds_t		= unsigned;
+
+/* metrics types */
+type lotto_metrics_info		= struct [7] of unsigned;
+type lotto_ipc_metrics_info	= struct [15] of unsigned;
+type lotto_quantum_metrics_t	= array  [12] of unsigned;
+
+/* ticket info type: <id, type, currency id, amount> */
+type lotto_ticket_info		= struct [4] of unsigned;
+type lotto_ticket_info_array	= array  [* : 1024] of lotto_ticket_info;
+

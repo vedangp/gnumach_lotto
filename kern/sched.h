@@ -35,6 +35,7 @@
 #ifndef	_KERN_SCHED_H_
 #define _KERN_SCHED_H_
 
+#include <mach_lotto.h>
 #include <kern/queue.h>
 #include <kern/lock.h>
 #include <kern/kern_types.h>
@@ -67,12 +68,16 @@ struct run_queue {
 	decl_simple_lock_data(,	lock)		/* one lock for all queues */
 	int			low;		/* low queue value */
 	int			count;		/* count of threads runable */
+#if	MACH_LOTTO
+	queue_head_t		lotto_runq;	/* lotto thread run queue */
+	int			lotto_count;	/* runnable lotto threads */
+#endif	/*MACH_LOTTO*/
 };
 
 typedef struct run_queue	*run_queue_t;
 #define RUN_QUEUE_NULL	((run_queue_t) 0)
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 /*
  *	NOTE: For fixed priority threads, first_quantum indicates
  *	whether context switch at same priority is ok.  For timeshareing
@@ -81,6 +86,9 @@ typedef struct run_queue	*run_queue_t;
 
 #define csw_needed(thread, processor) ((thread)->state & TH_SUSP ||	\
 	((processor)->runq.count > 0) ||				\
+	((thread)->policy == POLICY_LOTTO &&				\
+	 (processor)->first_quantum == FALSE &&				\
+	 (processor)->processor_set->runq.count > 0) ||			\
 	((thread)->policy == POLICY_TIMESHARE &&			\
 		(processor)->first_quantum == FALSE &&			\
 		(processor)->processor_set->runq.count > 0 &&		\
@@ -94,14 +102,14 @@ typedef struct run_queue	*run_queue_t;
 		 ((processor)->processor_set->runq.low <		\
 			(thread)->sched_pri))))
 
-#else	/* MACH_FIXPRI */
+#else	/* MACH_FIXPRI || MACH_LOTTO*/
 #define csw_needed(thread, processor) ((thread)->state & TH_SUSP ||	\
 		((processor)->runq.count > 0) ||			\
 		((processor)->first_quantum == FALSE &&			\
 		 ((processor)->processor_set->runq.count > 0 &&		\
 		  (processor)->processor_set->runq.low <=		\
 			((thread)->sched_pri))))
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 
 /*
  *	Scheduler routines.

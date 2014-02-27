@@ -28,7 +28,7 @@
  */
 
 #include <string.h>
-
+#include <mach_lotto.h>
 #include <mach/boolean.h>
 #include <mach/policy.h>
 #include <mach/processor_info.h>
@@ -46,6 +46,10 @@
 #include <kern/ipc_host.h>
 #include <ipc/ipc_port.h>
 
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#include <kern/lotto_debug.h>
+#endif	/*MACH_LOTTO*/
 #if	MACH_HOST
 #include <kern/slab.h>
 struct kmem_cache pset_cache;
@@ -135,12 +139,23 @@ void pset_init(
 {
 	int	i;
 
+#if	MACH_LOTTO
+	lotto_currency_t currency;
+	lotto_ticket_t ticket;
+#endif	/*MACH_LOTTO*/
+
 	simple_lock_init(&pset->runq.lock);
 	pset->runq.low = 0;
 	pset->runq.count = 0;
 	for (i = 0; i < NRQS; i++) {
 	    queue_init(&(pset->runq.runq[i]));
 	}
+
+#if	MACH_LOTTO
+	queue_init(&pset->runq.lotto_runq);
+	pset->runq.lotto_count = 0;
+#endif	/*MACH_LOTTO*/
+
 	queue_init(&pset->idle_queue);
 	pset->idle_count = 0;
 	simple_lock_init(&pset->idle_lock);
@@ -161,7 +176,64 @@ void pset_init(
 	pset->max_priority = BASEPRI_USER;
 #if	MACH_FIXPRI
 	pset->policies = POLICY_TIMESHARE;
-#endif	/* MACH_FIXPRI */
+#endif	/*MACH_FIXPRI*/
+
+#if	MACH_LOTTO
+	pset->policies = POLICY_LOTTO | POLICY_TIMESHARE;
+	pset->lotto_depress_count = 0;
+	pset->lotto_count = 0;
+
+	simple_lock_init(&pset->lotto_lock);
+	lotto_random_init(&pset->lotto_rnd, LOTTO_RANDOM_SEED);
+
+	pset->lotto_last_selected = THREAD_NULL;
+
+	/* initialize metrics */
+	lotto_metrics_info_init(&pset->lotto_metrics);
+
+	/* initialize quantum enabled flag */
+	pset->lotto_quantum_enabled = TRUE;
+
+#if	MACH_LOTTO_QUANTUM_METRICS
+	/* initialize quantum metrics */
+	lotto_quantum_metrics_init(pset->lotto_quantum_metrics);
+#endif	/*MACH_LOTTO_QUANTUM_METRICS*/
+
+	/* create primitive currency */
+	queue_init(&pset->lotto_currencies);
+	(void) lotto_prim_create_currency(pset,
+					  LOTTO_CURRENCY_NAME_BASE, 
+					  LOTTO_CURRENCY_ID_BASE,
+					  &pset->lotto_base_currency,
+					  &currency);
+
+	/* create and fund system currency */
+	(void) lotto_prim_create_currency(pset,
+					  LOTTO_CURRENCY_NAME_SYSTEM, 
+					  LOTTO_CURRENCY_ID_SYSTEM,
+					  &pset->lotto_system_currency,
+					  &currency);
+	(void) lotto_prim_create_ticket(pset,
+					&pset->lotto_base_currency,
+					10 * LOTTO_DEFAULT_AMOUNT,
+					&pset->lotto_system_ticket,
+					&ticket);
+	lotto_currency_add_ticket(currency, ticket);
+
+	/* create and fund user currency */
+	(void) lotto_prim_create_currency(pset,
+					  LOTTO_CURRENCY_NAME_USER, 
+					  LOTTO_CURRENCY_ID_USER,
+					  &pset->lotto_user_currency,
+					  &currency);
+	(void) lotto_prim_create_ticket(pset,
+					&pset->lotto_base_currency,
+					10 * LOTTO_DEFAULT_AMOUNT,
+					&pset->lotto_user_ticket,
+					&ticket);
+	lotto_currency_add_ticket(currency, ticket);
+#endif	/*MACH_LOTTO*/
+
 	pset->set_quantum = min_quantum;
 #if	NCPUS > 1
 	pset->quantum_adj_index = 0;
@@ -193,6 +265,12 @@ void processor_init(
 	for (i = 0; i < NRQS; i++) {
 	    queue_init(&(pr->runq.runq[i]));
 	}
+
+#if	MACH_LOTTO
+	queue_init(&pr->runq.lotto_runq);
+	pr->runq.lotto_count = 0;
+#endif	/*MACH_LOTTO*/
+
 	queue_init(&pr->processor_queue);
 	pr->state = PROCESSOR_OFF_LINE;
 	pr->next_thread = THREAD_NULL;
@@ -707,7 +785,7 @@ processor_set_info(
 		sched_info = (processor_set_sched_info_t) info;
 
 		pset_lock(pset);
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 		sched_info->policies = pset->policies;
 #else	/* MACH_FIXPRI */
 		sched_info->policies = POLICY_TIMESHARE;
@@ -773,18 +851,18 @@ processor_set_policy_enable(
 	if ((pset == PROCESSOR_SET_NULL) || invalid_policy(policy))
 		return KERN_INVALID_ARGUMENT;
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	pset_lock(pset);
 	pset->policies |= policy;
 	pset_unlock(pset);
 
 	return KERN_SUCCESS;
-#else	/* MACH_FIXPRI */
+#else	/* MACH_FIXPRI || MACH_LOTTO */
 	if (policy == POLICY_TIMESHARE)
 		return KERN_SUCCESS;
 	else
 		return KERN_FAILURE;
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 }
 
 /*
@@ -804,9 +882,22 @@ processor_set_policy_disable(
 	    invalid_policy(policy))
 		return KERN_INVALID_ARGUMENT;
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	pset_lock(pset);
+#endif /*MACH_FIXPRI || MACH_LOTTO*/
 
+#if	MACH_LOTTO
+	/* lotto => disallow lotto disable */
+	if ((pset->policies & POLICY_LOTTO) && (policy == POLICY_LOTTO))
+	  {
+	    (void) printf("processor_set_policy_disable: "
+			  "cannot disable lotto policy\n");
+	    pset_unlock(pset);
+	    return(KERN_FAILURE);
+	  }
+#endif	MACH_LOTTO
+
+#if	MACH_FIXPRI || MACH_LOTTO
 	/*
 	 *	Check if policy enabled.  Disable if so, then handle
 	 *	change_threads.
@@ -826,7 +917,7 @@ processor_set_policy_disable(
 	    }
 	}
 	pset_unlock(pset);
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 
 	return KERN_SUCCESS;
 }

@@ -34,6 +34,7 @@
 #ifndef	_KERN_TASK_H_
 #define _KERN_TASK_H_
 
+#include <mach_lotto.h>
 #include <mach/boolean.h>
 #include <mach/port.h>
 #include <mach/time_value.h>
@@ -48,6 +49,10 @@
 #include <kern/syscall_emulation.h>
 #include <vm/vm_types.h>
 #include <machine/task.h>
+
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#endif	/*MACH_LOTTO*/
 
 /*
  * Task name buffer size.  The size is chosen so that struct task fits
@@ -103,6 +108,10 @@ struct task {
 	struct 	eml_dispatch	*eml_dispatch;
 
 	sample_control_t pc_sample;
+
+#if	MACH_LOTTO
+	lotto_currency_t	lotto_task_currency;	/* task currency */
+#endif	/*MACH_LOTTO*/
 
 #if	FAST_TAS
 #define TASK_FAST_TAS_NRAS	8

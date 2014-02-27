@@ -34,6 +34,7 @@
  *	Functions to manipulate IPC message queues.
  */
 
+#include <mach_lotto.h>
 #include <mach/port.h>
 #include <mach/message.h>
 #include <kern/assert.h>
@@ -50,7 +51,9 @@
 #include <ipc/ipc_space.h>
 #include <ipc/ipc_marequest.h>
 
-
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#endif	MACH_LOTTO
 
 /*
  *	Routine:	ipc_mqueue_init
@@ -348,6 +351,17 @@ ipc_mqueue_send(kmsg, option, time_out)
 		if (receiver == ITH_NULL) {
 			/* no receivers; queue kmsg */
 
+#if	MACH_LOTTO_IPC
+		        /* if call, post funding for later pickup */
+		        if (lotto_ipc_is_request(&kmsg->ikm_header))
+			  lotto_ipc_xfer_post(current_thread(), 
+					      &kmsg->ikm_header);
+
+		        /* if reply, return funding to caller */
+			if (lotto_ipc_is_reply(&kmsg->ikm_header))
+			  lotto_ipc_xfer_return(current_thread());
+#endif	/*MACH_LOTTO_IPC*/
+
 			ipc_kmsg_enqueue_macro(&mqueue->imq_messages, kmsg);
 			imq_unlock(mqueue);
 			break;
@@ -358,6 +372,21 @@ ipc_mqueue_send(kmsg, option, time_out)
 
 		if (kmsg->ikm_header.msgh_size <= receiver->ith_msize) {
 			/* got a successful receiver */
+
+#if	MACH_LOTTO_IPC
+		        /* if call, transfer funding (post & take) */
+		        if (lotto_ipc_is_request(&kmsg->ikm_header))
+			  {
+			    lotto_ipc_xfer_post(current_thread(),
+						&kmsg->ikm_header);
+			    lotto_ipc_xfer_take(receiver,
+						&kmsg->ikm_header);
+			  }
+
+			/* if reply, return funding to caller */
+			if (lotto_ipc_is_reply(&kmsg->ikm_header))
+			  lotto_ipc_xfer_return(current_thread());
+#endif	/*MACH_LOTTO_IPC*/
 
 			receiver->ith_state = MACH_MSG_SUCCESS;
 			receiver->ith_kmsg = kmsg;
@@ -690,5 +719,12 @@ ipc_mqueue_receive(
 
 	*kmsgp = kmsg;
 	*seqnop = seqno;
+
+#if	MACH_LOTTO_IPC
+	/* attempt to get funding from sender */
+	if (lotto_ipc_is_request(&kmsg->ikm_header))
+	  lotto_ipc_xfer_take(current_thread(), &kmsg->ikm_header);
+#endif	/*MACH_LOTTO_IPC*/
+
 	return MACH_MSG_SUCCESS;
 }

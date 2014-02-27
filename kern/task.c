@@ -72,6 +72,75 @@ void task_init(void)
 	(void) task_create(TASK_NULL, FALSE, &kernel_task);
 }
 
+/*
+ * Create a task running in the kernel address space.  It may
+ * have its own map of size mem_size (if 0, it uses the kernel map),
+ * and may have ipc privileges.
+ */
+task_t	kernel_task_create(
+	task_t		parent_task,
+	vm_size_t	map_size)
+{
+	task_t		new_task;
+	vm_offset_t	min, max;
+
+#if	MACH_LOTTO
+	lotto_currency_t currency;
+	lotto_ticket_t ticket;
+	processor_set_t pset;
+	spl_t s;
+#endif	MACH_LOTTO
+
+	/*
+	 * Create the task.
+	 */
+	(void) task_create(parent_task, FALSE, &new_task);
+
+#if	MACH_LOTTO
+	/* 
+	 * task_create() funds task with single user-currency ticket.
+	 * Remove user funding, and then add system funding.
+	 *
+	 */
+
+	/* convenient abbreviation */
+	pset = new_task->processor_set;
+
+	/* acquire pset lotto lock */
+	LOTTO_LOCK(pset, s);
+
+	/* remove user-denominated ticket */
+	currency = new_task->lotto_task_currency;
+	ticket = (lotto_ticket_t) queue_first(&currency->tickets_owned);
+	LOTTO_ASSERT(ticket->currency->id == LOTTO_CURRENCY_ID_USER);
+	(void) lotto_prim_destroy_ticket(pset, ticket);
+
+	/* add system-denominated ticket */
+	(void) lotto_prim_create_ticket(pset, 
+					&pset->lotto_system_currency,
+					LOTTO_DEFAULT_AMOUNT,
+					LOTTO_TICKET_NULL,
+					&ticket);
+	lotto_currency_add_ticket(currency, ticket);
+
+	/* release pset lotto lock */
+	LOTTO_UNLOCK(pset, s);
+#endif	MACH_LOTTO
+
+	/*
+	 * Task_create creates the task with a user-space map.
+	 * Remove the map and replace it with the kernel map
+	 * or a submap of the kernel map.
+	 */
+	vm_map_deallocate(new_task->map);
+	if (map_size == 0)
+	    new_task->map = kernel_map;
+	else
+	    new_task->map = kmem_suballoc(kernel_map, &min, &max,
+					  map_size, FALSE);
+
+	return new_task;
+}
 kern_return_t task_create(
 	task_t		parent_task,
 	boolean_t	inherit_memory,
@@ -154,6 +223,36 @@ kern_return_t task_create(
 	new_task->pc_sample.sampletypes = 0;
 #endif	/* MACH_PCSAMPLE */
 
+#if	MACH_LOTTO
+	{
+	  lotto_currency_name_t currency_name;
+	  lotto_ticket_t ticket;
+	  kern_return_t kr;
+	  spl_t s;
+	  
+	  /* create and associate a new currency with task */
+	  (void) sprintf(currency_name, "_task:%x", (void *) new_task);
+
+	  /* acquire pset lotto lock */
+	  LOTTO_LOCK(pset, s);
+
+	  /* create and fund currency */
+	  (void) lotto_prim_create_currency(pset,
+					    currency_name,
+					    LOTTO_CURRENCY_ID_NULL,
+					    LOTTO_CURRENCY_NULL,
+					    &new_task->lotto_task_currency);
+	  (void) lotto_prim_create_ticket(pset,
+					  &pset->lotto_user_currency,
+					  LOTTO_DEFAULT_AMOUNT,
+					  LOTTO_TICKET_NULL,
+					  &ticket);
+	  lotto_currency_add_ticket(new_task->lotto_task_currency, ticket);
+
+	  /* release pset lotto lock */
+	  LOTTO_UNLOCK(pset, s);
+	}
+#endif	MACH_LOTTO
 #if	FAST_TAS
 	for (i = 0; i < TASK_FAST_TAS_NRAS; i++)  {
 	    if (inherit_memory) {
@@ -201,6 +300,22 @@ void task_deallocate(
 	eml_task_deallocate(task);
 
 	pset = task->processor_set;
+#if	MACH_LOTTO
+	{
+	  spl_t s;
+
+	  /* acquire pset lotto lock */
+	  LOTTO_LOCK(pset, s);
+
+	  /* destroy currency associated with task */
+	  (void) lotto_prim_destroy_currency(pset,
+					     task->lotto_task_currency,
+					     TRUE);
+
+	  /* release pset lotto lock */
+	  LOTTO_UNLOCK(pset, s);
+	}
+#endif	/*MACH_LOTTO*/
 	pset_lock(pset);
 	pset_remove_task(pset,task);
 	pset_unlock(pset);

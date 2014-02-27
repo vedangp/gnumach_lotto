@@ -62,6 +62,10 @@
 #include <machine/locore.h>
 #include <machine/pcb.h>
 
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#endif	MACH_LOTTO
+
 /*
  *	Routine:	mach_msg_send
  *	Purpose:
@@ -390,6 +394,8 @@ mach_msg_trap(msg, option, send_size, rcv_size, rcv_name, time_out, notify)
 {
 	mach_msg_return_t mr;
 
+#ifndef	KEEP_STACKS
+#if	!MACH_LOTTO_IPC
 	/* first check for common cases */
 
 	if (option == (MACH_SEND_MSG|MACH_RCV_MSG)) {
@@ -1642,10 +1648,26 @@ mach_msg_trap(msg, option, send_size, rcv_size, rcv_name, time_out, notify)
 		thread_syscall_return(MACH_MSG_SUCCESS);
 		/*NOTREACHED*/
 	}
+#endif	!MACH_LOTTO_IPC
+#endif	KEEP_STACKS
 
 	if (option & MACH_SEND_MSG) {
+
+#if	MACH_LOTTO_IPC
+	        extern boolean_t lotto_ipc_enabled;
+
+		/* enable lotto ipc xfer posts if RPC (SEND & RCV) */
+	  	if (option & MACH_RCV_MSG)
+		  current_thread()->lotto_ipc_post_enable = lotto_ipc_enabled;
+#endif	/*MACH_LOTTO_IPC*/
+	  	
 		mr = mach_msg_send(msg, option, send_size,
 				   time_out, notify);
+
+#if	MACH_LOTTO_IPC
+		/* disable lotto ipc xfer posts */
+	        current_thread()->lotto_ipc_post_enable = FALSE;
+#endif	/*MACH_LOTTO_IPC*/
 		if (mr != MACH_MSG_SUCCESS)
 			return mr;
 	}
@@ -1758,6 +1780,10 @@ mach_msg_interrupt(thread)
 
 	ipc_object_release(thread->ith_object);
 
+#if	MACH_LOTTO_IPC
+	/* abort any outstanding lotto ipc transfers */
+	/* lotto_ipc_xfer_abort(thread); */
+#endif	/*MACH_LOTTO_IPC*/
 	thread_set_syscall_return(thread, MACH_RCV_INTERRUPTED);
 	thread->swap_func = thread_exception_return;
 	return TRUE;

@@ -34,6 +34,7 @@
 #ifndef	_KERN_THREAD_H_
 #define _KERN_THREAD_H_
 
+#include <mach_lotto.h>
 #include <mach/boolean.h>
 #include <mach/thread_info.h>
 #include <mach/thread_status.h>
@@ -54,6 +55,10 @@
 #include <kern/task.h>		/* for current_space(), current_map() */
 #include <machine/thread.h>
 #include <ipc/ipc_kmsg_queue.h>
+
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#endif	/*MACH_LOTTO*/
 
 struct thread {
 	/* Run queues */
@@ -117,10 +122,26 @@ struct thread {
 	int		priority;	/* thread's priority */
 	int		max_priority;	/* maximum priority */
 	int		sched_pri;	/* scheduled (computed) priority */
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	int		sched_data;	/* for use by policy */
 	int		policy;		/* scheduling policy */
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
+#if	MACH_LOTTO
+	lotto_currency_t lotto_thread_currency;	 /* thread currency */
+	lotto_ticket_t   lotto_thread_ticket;	 /* thread ticket */
+	boolean_t	 lotto_activated;	 /* ticket activated? */
+	lotto_funds_t	 lotto_depressed_amount; /* ticket depressed value */
+
+	unsigned int	 lotto_quantum_used;	 /* quantum usage (ticks) */
+	lotto_funds_t	 lotto_quantum_cost;	 /* quantum cost (funds) */
+	lotto_ticket_t	 lotto_quantum_ticket;	 /* subquantum compensation */
+#endif	/*MACH_LOTTO*/
+
+#if	MACH_LOTTO_IPC
+	boolean_t	 lotto_ipc_post_enable;	/* should posts be allowed? */
+	lotto_ipc_xfer_t lotto_ipc_send;	/* outgoing xfer as sender */
+	lotto_ipc_xfer_t lotto_ipc_recv;	/* incoming xfer as receiver */
+#endif	/*MACH_LOTTO_IPC*/
 	int		depress_priority; /* depressed from this priority */
 	unsigned int	cpu_usage;	/* exp. decaying cpu usage [%cpu] */
 	unsigned int	sched_usage;	/* load-weighted cpu usage [sched] */

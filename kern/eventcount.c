@@ -37,7 +37,7 @@
 
 #include <kern/printf.h>
 #include <string.h>
-
+#include <mach_lotto.h>
 #include <mach/machine.h>
 #include <kern/ast.h>
 #include <kern/debug.h>
@@ -261,7 +261,7 @@ evc_signal(evc_t ev)
 		 */
 		thread->state = (state &~ TH_WAIT) | TH_RUN;
 		thread_unlock(thread);
-#if NCPUS > 1
+#if NCPUS > 1 || MACH_LOTTO
 		thread_setrun(thread, TRUE);
 #else
 		simpler_thread_setrun(thread, TRUE);
@@ -309,7 +309,7 @@ evc_signal(evc_t ev)
     splx(s);
 }
 
-#if	NCPUS <= 1
+#if	NCPUS <= 1 && !MACH_LOTTO
 /*
  * The scheduler is too messy for my old little brain
  */

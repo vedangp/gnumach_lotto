@@ -26,7 +26,7 @@
  * any improvements or extensions that they make and grant Carnegie Mellon
  * the rights to redistribute these changes.
  */
-
+#include <mach_lotto.h>
 #include <mach/boolean.h>
 #include <mach/thread_switch.h>
 #include <ipc/ipc_port.h>
@@ -44,11 +44,13 @@
 #include <kern/thread.h>
 #include <machine/machspl.h>	/* for splsched */
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 #include <mach/policy.h>
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 
-
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#endif	/*MACH_LOTTO*/
 
 /*
  *	swtch and swtch_pri both attempt to context switch (logic in
@@ -310,6 +312,11 @@ mach_msg_timeout_t depress_time;
     if (ticks != 0)
 	set_timeout(&thread->depress_timer, ticks);
 
+#if	MACH_LOTTO
+    if (thread->policy == POLICY_LOTTO)
+      lotto_thread_depress(thread);
+#endif	/*MACH_LOTTO*/
+
     thread_unlock(thread);
     (void) splx(s);
 }
@@ -337,6 +344,11 @@ thread_t thread;
 	thread->priority = thread->depress_priority;
 	thread->depress_priority = -1;
 	compute_priority(thread, FALSE);
+
+#if	MACH_LOTTO
+	if (thread->policy == POLICY_LOTTO)
+	  lotto_thread_undepress(thread);
+#endif	/*MACH_LOTTO*/
     }
 
     thread_unlock(thread);
@@ -368,6 +380,11 @@ thread_t	thread;
 	thread->priority = thread->depress_priority;
 	thread->depress_priority = -1;
 	compute_priority(thread, FALSE);
+
+#if	MACH_LOTTO
+	if (thread->policy == POLICY_LOTTO)
+	  lotto_thread_undepress(thread);
+#endif	/*MACH_LOTTO*/
     }
 
     thread_unlock(thread);

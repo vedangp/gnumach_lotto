@@ -48,6 +48,10 @@
 #include <kern/kern_types.h>
 #include <kern/host.h>
 
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#endif	/*MACH_LOTTO*/
+
 #if	NCPUS > 1
 #include <machine/ast_types.h>
 #endif	/* NCPUS > 1 */
@@ -72,9 +76,29 @@ struct processor_set {
 	struct ipc_port	*	pset_self;	/* port for operations */
 	struct ipc_port *	pset_name_self;	/* port for information */
 	int			max_priority;	/* maximum priority */
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	int			policies;	/* bit vector for policies */
-#endif	/* MACH_FIXPRI */
+#endif	/*MACH_FIXPRI || MACH_LOTTO*/
+
+#if	MACH_LOTTO
+	decl_simple_lock_data(, lotto_lock);		/* lotto state lock */
+	queue_head_t		lotto_currencies;	/* all currencies */
+	lotto_currency		lotto_base_currency;	/* base currency */
+	lotto_currency		lotto_system_currency;	/* system currency */
+	lotto_currency		lotto_user_currency;	/* user currency */
+	lotto_ticket		lotto_system_ticket;	/* system funding */
+	lotto_ticket		lotto_user_ticket;	/* user funding */
+	int			lotto_depress_count;	/* depressed count */
+	int			lotto_count;		/* active count */
+	lotto_random		lotto_rnd;		/* random generator */
+	thread_t		lotto_last_selected;	/* lazy deactivation */
+	lotto_metrics_info	lotto_metrics;		/* statistics */
+	boolean_t		lotto_quantum_enabled;	/* enabled? */
+#if	MACH_LOTTO_QUANTUM_METRICS
+	lotto_quantum_metrics_t	lotto_quantum_metrics;	/* quantum stats */
+#endif	/*MACH_LOTTO_QUANTUM_METRICS*/
+#endif	/*MACH_LOTTO*/
+
 	int			set_quantum;	/* current default quantum */
 #if	NCPUS > 1
 	int			quantum_adj_index; /* runtime quantum adj. */
@@ -141,8 +165,11 @@ decl_simple_lock_data(extern, all_psets_lock);
  *		|	    |
  *		|   +-------+
  *		|   |	    |
- *		|   |	    V
- *		|   |	runq_lock*
+ *		|   |	lotto_lock*
+ *		|   |	    |
+ *		|   |	    |      
+ *		|   |	    V      
+ *		|   |	runq_lock* 
  *		|   |
  *		V   V
  *	processor_lock*

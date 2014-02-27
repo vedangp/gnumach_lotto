@@ -116,6 +116,10 @@ void setup_main(void)
 	vm_mem_init();
 	ipc_init();
 
+#if	MACH_LOTTO
+	lotto_init();
+#endif	/*MACH_LOTTO*/
+
 	/*
 	 * As soon as the virtual memory system is up, we record
 	 * that this CPU is using the kernel pmap.

@@ -66,6 +66,9 @@
 #include <machine/pcb.h>
 #include <machine/thread.h>		/* for MACHINE_STACK */
 
+#if	MACH_LOTTO
+#include <kern/lotto_debug.h>
+#endif	MACH_LOTTO
 thread_t active_threads[NCPUS];
 vm_offset_t active_stacks[NCPUS];
 
@@ -335,6 +338,25 @@ void thread_init(void)
 	thread_template.sched_data = 0;
 	thread_template.policy = POLICY_TIMESHARE;
 #endif	/* MACH_FIXPRI */
+#if	MACH_LOTTO
+	thread_template.sched_data = 0;
+	thread_template.policy = POLICY_LOTTO;
+	
+	/* thread_template.lotto_thread_currency (later) */
+	/* thread_template.lotto_thread_ticket (later) */
+	thread_template.lotto_activated = FALSE;
+	thread_template.lotto_depressed_amount = LOTTO_FUNDS_NULL;
+
+	thread_template.lotto_quantum_used = 0;
+	thread_template.lotto_quantum_cost = LOTTO_FUNDS_NULL;
+	/* thread_template.lotto_quantum_ticket (later) */
+#endif	MACH_LOTTO
+	
+#if	MACH_LOTTO_IPC
+	thread_template.lotto_ipc_post_enable = FALSE;
+	thread_template.lotto_ipc_send = LOTTO_IPC_XFER_NULL;
+	thread_template.lotto_ipc_recv = LOTTO_IPC_XFER_NULL;
+#endif	MACH_LOTTO_IPC
 	thread_template.depress_priority = -1;
 	thread_template.cpu_usage = 0;
 	thread_template.sched_usage = 0;
@@ -487,6 +509,55 @@ kern_return_t thread_create(
 	 *	Don't need to lock thread here because it can't
 	 *	possibly execute and no one else knows about it.
 	 */
+
+#if	MACH_LOTTO
+	{
+	  lotto_currency_name_t currency_name;
+	  lotto_ticket_t ticket;
+	  spl_t s;
+	  
+	  /* create and associate a new currency with thread */
+	  (void) sprintf(currency_name, "_thread:%x", (void *) new_thread);
+	  
+	  /* acquire pset lotto lock */
+	  LOTTO_LOCK(pset, s);
+	  
+	  /* create and fund thread currency */
+	  (void) lotto_prim_create_currency(pset,
+					    currency_name,
+					    LOTTO_CURRENCY_ID_NULL,
+					    LOTTO_CURRENCY_NULL,
+					    &new_thread->lotto_thread_currency);
+	  (void) lotto_prim_create_ticket(pset,
+					  parent_task->lotto_task_currency,
+					  LOTTO_DEFAULT_AMOUNT,
+					  LOTTO_TICKET_NULL,
+					  &ticket);
+	  lotto_currency_add_ticket(new_thread->lotto_thread_currency, ticket);
+	  
+	  /* create thread ticket, denominated in thread currency */
+	  (void) lotto_prim_create_ticket(pset,
+					  new_thread->lotto_thread_currency,
+					  LOTTO_DEFAULT_AMOUNT,
+					  LOTTO_TICKET_NULL,
+					  &new_thread->lotto_thread_ticket);
+	  
+	  /* initialize subquantum compensation ticket (initial value zero) */
+	  (void) lotto_prim_create_ticket(pset,
+					  &pset->lotto_base_currency,
+					  LOTTO_FUNDS_NULL,
+					  LOTTO_TICKET_NULL,
+					  &new_thread->lotto_quantum_ticket);
+
+	  /* release pset lotto lock */
+	  LOTTO_UNLOCK(pset, s);
+	}
+
+	/* use lotto priority */
+	if (new_thread->policy == POLICY_LOTTO)
+	  new_thread->sched_pri = LOTTO_PRIORITY;
+	else
+#endif	/*MACH_LOTTO*/
 	compute_priority(new_thread, TRUE);
 
 	/*
@@ -658,6 +729,44 @@ void thread_deallocate(
 	time_value_add(&task->total_user_time, &user_time);
 	time_value_add(&task->total_system_time, &system_time);
 
+#if	MACH_LOTTO_IPC
+	/* abort any outstanding lotto ipc transfers */
+	lotto_ipc_xfer_abort(thread);
+#endif	/*MACH_LOTTO_IPC*/
+
+#if	MACH_LOTTO
+	/*
+	 * 	Destroy lotto currency and tickets associated with thread.
+	 *	Already at splsched(), so use simple_lock().
+	 *	Note: OK even if policy != POLICY_LOTTO, since pset
+	 *	lotto_lock and thread lotto fields are always initialized. 
+	 *
+	 */
+
+	/* acquire pset lotto lock */
+	simple_lock(&pset->lotto_lock);
+	
+	/* support for lazy deactivation */
+	
+	/* deactivate thread */
+	if (thread->lotto_activated)
+	  lotto_thread_deactivate(thread);
+	  
+	/* reset last selected, if necessary */
+	if (pset->lotto_last_selected == thread)
+	  pset->lotto_last_selected = THREAD_NULL;
+
+	/* destory quantum compensation ticket */
+	(void) lotto_prim_destroy_ticket(pset, thread->lotto_quantum_ticket);
+	
+	/* destroy currency associated with thread (will destroy tickets) */
+	(void) lotto_prim_destroy_currency(pset,
+					   thread->lotto_thread_currency,
+					   TRUE);
+
+	/* release pset lotto lock */
+	simple_unlock(&pset->lotto_lock);
+#endif	/*MACH_LOTTO*/
 	/*
 	 *	Remove thread from task list and processor_set threads list.
 	 */
@@ -1571,7 +1680,7 @@ kern_return_t thread_info(
 	    s = splsched();
 	    thread_lock(thread);
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	    sched_info->policy = thread->policy;
 	    if (thread->policy == POLICY_FIXEDPRI) {
 		sched_info->data = (thread->sched_data * tick)/1000;
@@ -1579,10 +1688,10 @@ kern_return_t thread_info(
 	    else {
 		sched_info->data = 0;
 	    }
-#else	/* MACH_FIXPRI */
+#else	/* MACH_FIXPRI || MACH_LOTTO*/
 	    sched_info->policy = POLICY_TIMESHARE;
 	    sched_info->data = 0;
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 
 	    sched_info->base_priority = thread->priority;
 	    sched_info->max_priority = thread->max_priority;
@@ -1683,6 +1792,11 @@ thread_t kernel_thread(
 	thread->max_priority = BASEPRI_SYSTEM;
 	thread->priority = BASEPRI_SYSTEM;
 	thread->sched_pri = BASEPRI_SYSTEM;
+#if	MACH_LOTTO
+	/* use TIMESHARE policy for kernel threads */
+	thread->policy = POLICY_TIMESHARE;
+	compute_priority(thread, FALSE);
+#endif	/*MACH_LOTTO*/
 	(void) thread_resume(thread);
 	return thread;
 }
@@ -1880,12 +1994,12 @@ Restart:
 	/*
 	 *	Reset policy and priorities if needed.
 	 */
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	if (thread->policy & new_pset->policies == 0) {
 	    thread->policy = POLICY_TIMESHARE;
 	    recompute_pri = TRUE;
 	}
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 
 	if (thread->max_priority < new_pset->max_priority) {
 	    thread->max_priority = new_pset->max_priority;
@@ -1999,6 +2113,22 @@ thread_priority(
     s = splsched();
     thread_lock(thread);
 
+#if	MACH_LOTTO_DEBUG_VERBOSE
+    if (thread->policy == POLICY_LOTTO)
+      {
+	static unsigned count = 0;
+	count++;
+	(void) printf("thread_set_priority: LOTTO, priority=%u (%u)\n",
+		      priority, 
+		      count);
+      }
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE*/
+
+#if	MACH_LOTTO
+    /* lotto policy ignores priority */
+    if (thread->policy != POLICY_LOTTO)
+#endif	/*MACH_LOTTO*/
+      {
     /*
      *	Check for violation of max priority
      */
@@ -2021,6 +2151,7 @@ thread_priority(
 	if (set_max)
 	    thread->max_priority = priority;
     }
+      }
     thread_unlock(thread);
     (void) splx(s);
 
@@ -2043,10 +2174,27 @@ thread_set_own_priority(
     s = splsched();
     thread_lock(thread);
 
+#if	MACH_LOTTO_DEBUG_VERBOSE
+    if (thread->policy == POLICY_LOTTO)
+      {
+	static unsigned count = 0;
+	count++;
+	(void) printf("thread_set_own_priority: LOTTO, priority=%u (%u)\n",
+		      priority,
+		      count);
+      }
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE*/
+
+#if	MACH_LOTTO
+    /* lotto policy ignores priority */
+    if (thread->policy != POLICY_LOTTO)
+#endif	MACH_LOTTO
+      {
     if (priority < thread->max_priority)
 	thread->max_priority = priority;
     thread->priority = priority;
     compute_priority(thread, TRUE);
+   }
 
     thread_unlock(thread);
     (void) splx(s);
@@ -2118,16 +2266,16 @@ thread_policy(
 	int		policy,
 	int		data)
 {
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	kern_return_t	ret = KERN_SUCCESS;
 	int		temp;
 	spl_t		s;
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 
 	if ((thread == THREAD_NULL) || invalid_policy(policy))
 		return KERN_INVALID_ARGUMENT;
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	s = splsched();
 	thread_lock(thread);
 
@@ -2155,6 +2303,56 @@ thread_policy(
 		    ret = KERN_FAILURE;
 	    }
 	    else {
+
+#if	MACH_LOTTO
+	      /* handle LOTTO => FIXEDPRI/TIMESHARE policy change */
+	      if (thread->policy == POLICY_LOTTO)
+		{
+		  struct run_queue *old_rq;
+
+#if	MACH_LOTTO_DEBUG_VERBOSE > 1
+		  (void) printf("thread_policy: changing from LOTTO to %d\n",
+				policy);
+#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+
+		  /* deactivate thread, if necessary */
+		  if (thread->lotto_activated)
+		    {
+		      processor_set_t pset = thread->processor_set;
+		      
+		      /* acquire pset lotto lock */
+		      simple_lock(&pset->lotto_lock);
+		      
+		      /* deactivate thread */
+		      lotto_thread_deactivate(thread);
+		      
+		      /* release pset lotto lock */
+		      simple_unlock(&pset->lotto_lock);
+		    }
+
+		  /* remove thread from lotto runq */
+		  old_rq = rem_runq(thread);
+
+#if	MACH_LOTTO_IPC
+		  /* abort any outstanding lotto ipc transfers */
+		  lotto_ipc_xfer_abort(thread);
+#endif	MACH_LOTTO_IPC
+
+		  /* set new thread policy */
+		  thread->policy = policy;
+
+		  /* update thread priority (will remain off runq) */
+		  compute_priority(thread, FALSE); 
+
+		  /* place thread back on runq */
+		  if (old_rq != RUN_QUEUE_NULL)
+		    thread_setrun(thread, TRUE);
+		}
+	      else
+#endif	MACH_LOTTO
+		{
+		  /* FIXEDPRI/TIMESHARE => LOTTO not yet implemented */
+		  LOTTO_ASSERT(policy != POLICY_LOTTO);
 		/*
 		 *	Changing policy.  Save data and calculate new
 		 *	priority.
@@ -2169,16 +2367,17 @@ thread_policy(
 		compute_priority(thread, TRUE);
 	    }
 	}
+	}
 	thread_unlock(thread);
 	(void) splx(s);
 
 	return ret;
-#else	/* MACH_FIXPRI */
+#else	/* MACH_FIXPRI || MACH_LOTTO*/
 	if (policy == POLICY_TIMESHARE)
 		return KERN_SUCCESS;
 	else
 		return KERN_FAILURE;
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO*/
 }
 
 /*

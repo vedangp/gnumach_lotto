@@ -35,6 +35,7 @@
 
 #include <kern/debug.h>
 #include <kern/printf.h>
+#include <mach_lotto.h>
 #include <mach/port.h>
 #include <mach/kern_return.h>
 #include <mach/message.h>
@@ -176,6 +177,9 @@ ipc_kobject_server(request)
 #if	MACH_MACHINE_ROUTINES
 	 || (routine = MACHINE_SERVER_ROUTINE(&request->ikm_header)) != 0
 #endif	/* MACH_MACHINE_ROUTINES */
+#if	MACH_LOTTO
+	 || (routine = mach_lotto_server_routine(&request->ikm_header)) != 0
+#endif	MACH_LOTTO
 	) {
 	    (*routine)(&request->ikm_header, &reply->ikm_header);
 	    kernel_task->messages_received++;

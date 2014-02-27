@@ -33,6 +33,7 @@
  */
 
 #include <kern/printf.h>
+#include <mach_lotto.h>
 #include <mach/machine.h>
 #include <machine/locore.h>
 #include <machine/machspl.h>	/* For def'n of splsched() */
@@ -56,9 +57,16 @@
 #include <vm/vm_kern.h>
 #include <vm/vm_map.h>
 
-#if	MACH_FIXPRI
+#if	MACH_LOTTO
+#include <kern/lotto.h>
+#include <kern/lotto_debug.h>
+#endif	MACH_LOTTO
+
+#if	MACH_FIXPRI || MACH_LOTTO
 #include <mach/policy.h>
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO */
+extern int hz;
+
 
 int		min_quantum;	/* defines max context switch rate */
 
@@ -70,7 +78,19 @@ int		sched_usec;
 
 thread_t	sched_thread_id;
 
+void recompute_priorities(void);	/* forward */
+void update_priority(thread_t);
+void set_pri(thread_t, int, boolean_t);
+void do_thread_scan(void);
+
+thread_t	choose_pset_thread();
+
 timer_elt_data_t recompute_priorities_timer;
+
+#if	DEBUG
+void checkrq(run_queue_t, char *);
+void thread_check(thread_t, run_queue_t);
+#endif
 
 /*
  *	State machine
@@ -523,6 +543,9 @@ thread_t thread_select(
 #if	MACH_HOST
 			    (thread->processor_set == pset) &&
 #endif	/* MACH_HOST */
+#if	MACH_LOTTO
+			    (thread->policy != POLICY_LOTTO) && 
+#endif	MACH_LOTTO
 			    ((thread->bound_processor == PROCESSOR_NULL) ||
 			     (thread->bound_processor == myprocessor))) {
 
@@ -547,6 +570,11 @@ thread_t thread_select(
 
 			if (queue_empty(q)) {
 				pset->runq.low++;
+#if	MACH_LOTTO
+				/* prevent overflow */
+				if (pset->runq.low > LAST_VALID_RUNQ)
+				  pset->runq.low = LAST_VALID_RUNQ;
+#endif	MACH_LOTTO
 				thread = choose_pset_thread(myprocessor, pset);
 			}
 			else {
@@ -560,10 +588,15 @@ thread_t thread_select(
 				 */
 				if ((pset->runq.count > 0) &&
 				    (pset->policies & POLICY_FIXEDPRI)) {
-					    while (queue_empty(q)) {
-						pset->runq.low++;
-						q++;
-					    }
+				  while (queue_empty(q)
+#if	MACH_LOTTO
+					 /* prevent overflow */
+					 && (pset->runq.low < LAST_VALID_RUNQ)
+#endif	MACH_LOTTO
+					 ) {
+				    pset->runq.low++;
+				    q++;
+				  }
 				}
 #endif	/* MACH_FIXPRI */
 #if	DEBUG
@@ -573,11 +606,11 @@ thread_t thread_select(
 			}
 		}
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 		if (thread->policy == POLICY_TIMESHARE) {
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO */
 			myprocessor->quantum = pset->set_quantum;
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 		}
 		else {
 			/*
@@ -585,7 +618,7 @@ thread_t thread_select(
 			 */
 			myprocessor->quantum = thread->sched_data;
 		}
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO */
 	}
 
 	return thread;
@@ -1066,7 +1099,14 @@ void compute_my_priority(
 	thread_t	thread)
 {
 	int temp_pri;
-
+#if	MACH_LOTTO
+	/* lotto policy ignores priorities */
+	if (thread->policy == POLICY_LOTTO)
+	  {
+	    thread->sched_pri = LOTTO_PRIORITY;
+	    return;
+	  }
+#endif	MACH_LOTTO
 	do_priority_computation(thread,temp_pri);
 	thread->sched_pri = temp_pri;
 }
@@ -1159,9 +1199,9 @@ void update_priority(
 	 *	Recompute priority if appropriate.
 	 */
 	if (
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	    (thread->policy == POLICY_TIMESHARE) &&
-#endif	/* MACH_FIXPRI */
+#endif	/* MACH_FIXPRI || MACH_LOTTO */
 	    (thread->depress_priority < 0)) {
 		do_priority_computation(thread, temp_pri);
 		thread->sched_pri = temp_pri;
@@ -1217,6 +1257,99 @@ void update_priority(
 	    simple_unlock(&(rq)->lock);					\
 	MACRO_END
 #endif	/* DEBUG */
+
+#if	MACH_LOTTO
+void 
+  lotto_run_queue_enqueue
+  (run_queue_t rq,
+   thread_t t)
+{
+  /*
+   * locked:   t
+   * modifies: runq, t
+   * effects:  Adds t to run queue rq within t's processor set.
+   *
+   */
+
+  processor_set_t pset;
+
+  /* convenient abbreviation */
+  pset = t->processor_set;
+
+  /* backwards compatibility */
+  if (t->policy != POLICY_LOTTO)
+    {
+      /* invoke standard macro */
+      run_queue_enqueue(rq, t);
+      return;
+    }
+  
+  /* sanity check: ensure t has proper priority */
+  LOTTO_ASSERT(t->sched_pri == LOTTO_PRIORITY);
+  
+#if	MACH_LOTTO_IPC
+  /* unpost ipc xfer, if any */
+  lotto_ipc_xfer_unpost(t);
+#endif	MACH_LOTTO_IPC
+
+  /* acquire lotto lock */
+  simple_lock(&pset->lotto_lock);
+
+  /* acquire runq lock */
+  simple_lock(&rq->lock);
+  
+  /* add t to run queue */
+  enqueue_head(&rq->lotto_runq, (queue_entry_t) t);
+  rq->count++;
+  rq->lotto_count++;
+  pset->lotto_count++;
+  t->runq = rq;
+
+#if	MACH_LOTTO_QUANTUM_METRICS
+  /* update metrics */
+  if (t->lotto_quantum_used < LOTTO_QUANTUM_USED_MAX)
+    pset->lotto_quantum_metrics[t->lotto_quantum_used]++;
+  else
+    pset->lotto_quantum_metrics[LOTTO_QUANTUM_USED_MAX]++;
+#endif	MACH_LOTTO_QUANTUM_METRICS
+
+  /* compensate thread if used less than full quantum */
+  if (pset->lotto_quantum_enabled)
+    if (t->lotto_quantum_used < pset->set_quantum)
+      {
+	lotto_funds_t adjustment;
+	
+	/* compute adjustment for next quantum */
+	adjustment = pset->set_quantum * t->lotto_quantum_cost;
+	if (t->lotto_quantum_used > 0)
+	  adjustment /= t->lotto_quantum_used;
+	
+	/* account for non-compensation value */
+	if (adjustment > t->lotto_quantum_cost)
+	  adjustment -= t->lotto_quantum_cost;
+	else
+	  adjustment = 0;
+
+	/* set quantum ticket amount */
+	t->lotto_quantum_ticket->amount = adjustment;
+	
+	/* inflate thread value using quantum ticket */
+	lotto_currency_add_ticket(t->lotto_thread_currency,
+				  t->lotto_quantum_ticket);
+      }
+  
+  /* activate thread t, if necessary */
+  if (!t->lotto_activated)
+    lotto_thread_activate(t);
+  
+  /* release runq lock */
+  simple_unlock(&rq->lock);
+  
+  /* release lotto lock */
+  simple_unlock(&pset->lotto_lock);
+}
+#endif	MACH_LOTTO
+
 /*
  *	thread_setrun:
  *
@@ -1296,7 +1429,13 @@ void thread_setrun(
 		simple_unlock(&pset->idle_lock);
 	    }
 	    rq = &(pset->runq);
+
+#if	MACH_LOTTO
+	    lotto_run_queue_enqueue(rq, th);
+#else/*	MACH_LOTTO */
 	    run_queue_enqueue(rq,th);
+#endif/*MACH_LOTTO */
+
 	    /*
 	     * Preempt check
 	     */
@@ -1335,7 +1474,12 @@ void thread_setrun(
 		simple_unlock(&processor->lock);
 	    }
 	    rq = &(processor->runq);
+
+#if	MACH_LOTTO
+	    lotto_run_queue_enqueue(rq, th);
+#else	/*MACH_LOTTO*/
 	    run_queue_enqueue(rq,th);
+#endif	/*MACH_LOTTO*/
 
 	    /*
 	     *	Cause ast on processor if processor is on line.
@@ -1372,7 +1516,12 @@ void thread_setrun(
 		rq = &(master_processor->runq);
 		ast_on(cpu_number(), AST_BLOCK);
 	}
+
+#if	MACH_LOTTO
+	lotto_run_queue_enqueue(rq, th);
+#else	/*MACH_LOTTO*/
 	run_queue_enqueue(rq,th);
+#endif	/*MACH_LOTTO*/
 
 	/*
 	 * Preempt check
@@ -1402,14 +1551,32 @@ void set_pri(
 	boolean_t	resched)
 {
 	struct run_queue	*rq;
-
+#if	MACH_LOTTO
+	/* lotto policy ignores priority */
+	if (th->policy == POLICY_LOTTO)
+	  {
+	    th->sched_pri = LOTTO_PRIORITY;
+	    return;
+	  }
+#endif	/*MACH_LOTTO*/
 	rq = rem_runq(th);
 	th->sched_pri = pri;
+
+#if	MACH_LOTTO
+	/* force lotto thread "priority" */
+	if (th->policy == POLICY_LOTTO)
+	  th->sched_pri = LOTTO_PRIORITY;
+#endif	/*MACH_LOTTO*/
+
 	if (rq != RUN_QUEUE_NULL) {
 	    if (resched)
 		thread_setrun(th, TRUE);
 	    else
+#if	MACH_LOTTO
+	        lotto_run_queue_enqueue(rq, th);
+#else	/*MACH_LOTTO*/
 		run_queue_enqueue(rq, th);
+#endif	/*MACH_LOTTO*/
 	}
 }
 
@@ -1427,7 +1594,11 @@ struct run_queue *rem_runq(
 	thread_t		th)
 {
 	struct run_queue	*rq;
+#if	MACH_LOTTO
+	boolean_t lotto_policy;
 
+	lotto_policy = (th->policy == POLICY_LOTTO);
+#endif	/*MACH_LOTTO*/
 	rq = th->runq;
 	/*
 	 *	If rq is RUN_QUEUE_NULL, the thread will stay out of the
@@ -1435,7 +1606,19 @@ struct run_queue *rem_runq(
 	 *	the thread is on a runq, but could leave.
 	 */
 	if (rq != RUN_QUEUE_NULL) {
-		simple_lock(&rq->lock);
+
+#if	MACH_LOTTO
+ 	      processor_set_t pset;
+	      pset = th->processor_set;
+	  
+	      if (lotto_policy)
+		{
+		  /* acquire lotto lock */
+		  simple_lock(&pset->lotto_lock);
+		}
+#endif	/*MACH_LOTTO*/
+
+	        simple_lock(&rq->lock);
 #if	DEBUG
 		checkrq(rq, "rem_runq: at entry");
 #endif	/* DEBUG */
@@ -1450,11 +1633,35 @@ struct run_queue *rem_runq(
 #endif	/* DEBUG */
 			remqueue(&rq->runq[0], (queue_entry_t) th);
 			rq->count--;
+
+#if	MACH_LOTTO
+			if (lotto_policy)
+			  {
+			    rq->lotto_count--;
+			    pset->lotto_count--;
+			  }
+#endif	/*MACH_LOTTO*/
+
 #if	DEBUG
 			checkrq(rq, "rem_runq: after removing thread");
 #endif	/* DEBUG */
 			th->runq = RUN_QUEUE_NULL;
 			simple_unlock(&rq->lock);
+
+#if	MACH_LOTTO
+			if (lotto_policy)
+			  {
+			    /* reset quantum compensation */
+			    lotto_quantum_reset(th);
+			    
+			    /* deactivate thread tickets */
+			    /* lotto_thread_deactivate(th); */
+			    
+			    /* release lotto lock */
+			    simple_unlock(&pset->lotto_lock);
+			  }
+#endif	/*MACH_LOTTO*/		       
+
 		}
 		else {
 			/*
@@ -1464,6 +1671,15 @@ struct run_queue *rem_runq(
 			 *	caller locked the thread.
 			 */
 			simple_unlock(&rq->lock);
+
+#if	MACH_LOTTO
+			if (lotto_policy)
+			  {
+			    /* release lotto lock */
+			    simple_unlock(&pset->lotto_lock);
+			  }
+#endif	/*MACH_LOTTO*/
+
 			rq = RUN_QUEUE_NULL;
 		}
 	}
@@ -1512,8 +1728,18 @@ thread_t choose_thread(
 		    return th;
 		}
 	    }
-	    panic("choose_thread");
-	    /*NOTREACHED*/
+
+#if	MACH_LOTTO
+	    /* runnable threads must be in lotto_runq */
+	    runq->low = LAST_VALID_RUNQ;
+
+	    /* don't panic unless no runnable threads in lotto_runq */
+	    if (queue_empty(&runq->lotto_runq))
+#endif	/*MACH_LOTTO*/	    
+	      {
+		panic("choose_thread");
+		/*NOTREACHED*/
+	      }
 	}
 	simple_unlock(&runq->lock);
 
@@ -1560,13 +1786,24 @@ thread_t choose_pset_thread(
 #if	MACH_FIXPRI
 		    if ((runq->count > 0) &&
 			(pset->policies & POLICY_FIXEDPRI)) {
-			    while (queue_empty(q)) {
+			    while (queue_empty(q)
+#if	MACH_LOTTO
+				   /* prevent overflow */
+				   && (i < LAST_VALID_RUNQ)
+#endif	/*MACH_LOTTO*/
+				   ) {
 				q++;
 				i++;
 			    }
 		    }
 #endif	/* MACH_FIXPRI */
 		    runq->low = i;
+#if	MACH_LOTTO
+		    /* prevent overflow (probably redundant) */
+		    if (runq->low > LAST_VALID_RUNQ)
+		      runq->low = LAST_VALID_RUNQ;
+#endif	/*MACH_LOTTO*/
+
 #if	DEBUG
 		    checkrq(runq, "choose_pset_thread");
 #endif	/* DEBUG */
@@ -1574,10 +1811,28 @@ thread_t choose_pset_thread(
 		    return th;
 		}
 	    }
-	    panic("choose_pset_thread");
-	    /*NOTREACHED*/
+
+#if	MACH_LOTTO
+	    /* don't panic unless no runnable threads in lotto_runq */
+	    if (queue_empty(&runq->lotto_runq))
+#endif	/*MACH_LOTTO*/	    
+	      {
+		panic("choose_pset_thread");
+		/*NOTREACHED*/
+	      }
 	}
 	simple_unlock(&runq->lock);
+
+#if	MACH_LOTTO
+	/* 
+	 * No FIXEDPRI or TIMESHARE policy threads are runnable.
+	 * Use specialized select operation for LOTTO policy threads.
+	 * Note that no runq locks are currently held.
+	 *
+	 */
+	if (pset->policies & POLICY_LOTTO)
+	  return(lotto_sched_select(myprocessor, TRUE));
+#endif	/*MACH_LOTTO*/
 
 	/*
 	 *	Nothing is runnable, so set this processor idle if it
@@ -1886,6 +2141,12 @@ do_runq_scan(
 	s = splsched();
 	simple_lock(&runq->lock);
 	if((count = runq->count) > 0) {
+
+#if	MACH_LOTTO
+	    /* don't count threads in lotto_runq */
+	    count -= runq->lotto_count;
+#endif	/*MACH_LOTTO*/
+
 	    q = runq->runq + runq->low;
 	    while (count > 0) {
 		thread = (thread_t) queue_first(q);
@@ -1897,6 +2158,10 @@ do_runq_scan(
 		    thread_t next = (thread_t) queue_next(&thread->links);
 
 		    if ((thread->state & TH_SCHED_STATE) == TH_RUN &&
+#if	MACH_LOTTO
+			/* lotto policy threads can't get stuck */
+			(thread->policy != POLICY_LOTTO) &&
+#endif	/*MACH_LOTTO*/
 			sched_tick - thread->sched_stamp > 1) {
 			    /*
 			     *	Stuck, save its id for later.
@@ -1953,12 +2218,20 @@ void do_thread_scan(void)
 #if	MACH_HOST
 	    simple_lock(&all_psets_lock);
 	    queue_iterate(&all_psets, pset, processor_set_t, all_psets) {
+#if	MACH_LOTTO
+	      /* pure lotto policy doesn't have stuck threads */
+	      if (pset->policies != POLICY_LOTTO)
+#endif	/*MACH_LOTTO*/
 		if (restart_needed = do_runq_scan(&pset->runq))
 			break;
 	    }
 	    simple_unlock(&all_psets_lock);
 #else	/* MACH_HOST */
-	    restart_needed = do_runq_scan(&default_pset.runq);
+#if	MACH_LOTTO
+	    /* pure lotto policy doesn't have stuck threads */
+	    if (default_pset.policies != POLICY_LOTTO)
+#endif	/*MACH_LOTTO*/
+	      restart_needed = do_runq_scan(&default_pset.runq);
 #endif	/* MACH_HOST */
 	    if (!restart_needed)
 	    	restart_needed = do_runq_scan(&master_processor->runq);

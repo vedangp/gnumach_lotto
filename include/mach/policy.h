@@ -38,7 +38,8 @@
  */
 #define	POLICY_TIMESHARE	1
 #define POLICY_FIXEDPRI		2
-#define POLICY_LAST		2
+#define POLICY_LOTTO		4
+#define POLICY_LAST		4
 
 #define invalid_policy(policy)	(((policy) <= 0) || ((policy) > POLICY_LAST))
 
