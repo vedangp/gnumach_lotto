@@ -162,9 +162,9 @@ ipc_kobject_server(request)
 	extern mig_routine_t	MACHINE_SERVER_ROUTINE();
 #endif
 
-//#if MACH_LOTTO
-//	extern mig_routine_t mach_lotto_server_routine();
-//#endif /* MACH_LOTTO */
+#if MACH_LOTTO
+	extern mig_routine_t mach_lotto_server_routine();
+#endif /* MACH_LOTTO */
 
 	check_simple_locks();
 	if ((routine = mach_server_routine(&request->ikm_header)) != 0
@@ -180,9 +180,9 @@ ipc_kobject_server(request)
 #if	MACH_MACHINE_ROUTINES
 	 || (routine = MACHINE_SERVER_ROUTINE(&request->ikm_header)) != 0
 #endif	/* MACH_MACHINE_ROUTINES */
-//#if	MACH_LOTTO
-//	 || (routine = mach_lotto_server_routine(&request->ikm_header)) != 0
-//#endif	MACH_LOTTO
+#if	MACH_LOTTO
+	 || (routine = mach_lotto_server_routine(&request->ikm_header)) != 0
+#endif	MACH_LOTTO
 	) {
 	    (*routine)(&request->ikm_header, &reply->ikm_header);
 	    kernel_task->messages_received++;

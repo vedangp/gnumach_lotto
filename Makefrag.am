@@ -222,7 +222,8 @@ EXTRA_DIST += \
 	kern/mach4.srv \
 	kern/gnumach.srv \
 	kern/mach_debug.srv \
-	kern/mach_host.srv
+	kern/mach_host.srv \
+	kenr/mach_lotto.srv
 
 
 #
@@ -508,7 +509,8 @@ nodist_lib_dep_tr_for_defs_a_SOURCES += \
 	kern/mach4.server.defs.c \
 	kern/gnumach.server.defs.c \
 	kern/mach_debug.server.defs.c \
-	kern/mach_host.server.defs.c
+	kern/mach_host.server.defs.c \
+	kern/mach_lotto.server.defs.c
 nodist_libkernel_a_SOURCES += \
 	kern/mach.server.h \
 	kern/mach.server.c \
@@ -524,7 +526,10 @@ nodist_libkernel_a_SOURCES += \
 	kern/mach_debug.server.msgids \
 	kern/mach_host.server.h \
 	kern/mach_host.server.c \
-	kern/mach_host.server.msgids
+	kern/mach_host.server.msgids \
+	kern/mach_lotto.server.h \
+	kern/mach_lotto.server.c \
+	kern/mach_lotto.server.msgids \
 #	kern/mach.server.defs
 #	kern/mach4.server.defs
 #	kern/gnumach.server.defs
