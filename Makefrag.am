@@ -190,6 +190,9 @@ libkernel_a_SOURCES += \
 	kern/sched.h \
 	kern/sched_prim.c \
 	kern/sched_prim.h \
+	kern/lotto.c \
+	kern/lotto.h \
+	kern/lotto_debug.h \
 	kern/shuttle.h \
 	kern/startup.c \
 	kern/startup.h \
@@ -363,6 +366,8 @@ include_mach_HEADERS = \
 	include/mach/mach4.defs \
 	include/mach/gnumach.defs \
 	include/mach/mach_host.defs \
+	include/mach/mach_lotto.defs \
+	included/mach/mach_lotto_types.defs \ 
 	include/mach/mach_port.defs \
 	include/mach/mach_types.defs \
 	include/mach/memory_object.defs \
@@ -378,6 +383,7 @@ include_mach_HEADERS = \
 	include/mach/kern_return.h \
 	include/mach/mach_param.h \
 	include/mach/mach_types.h \
+	include/mach/mach_lotto_types.h \
 	include/mach/machine.h \
 	include/mach/macro_help.h \
 	include/mach/memory_object.h \

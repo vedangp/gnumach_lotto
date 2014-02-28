@@ -28,7 +28,6 @@
  */
 
 #include <string.h>
-#include <mach_lotto.h>
 #include <mach/boolean.h>
 #include <mach/policy.h>
 #include <mach/processor_info.h>

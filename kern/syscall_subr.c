@@ -26,7 +26,6 @@
  * any improvements or extensions that they make and grant Carnegie Mellon
  * the rights to redistribute these changes.
  */
-#include <mach_lotto.h>
 #include <mach/boolean.h>
 #include <mach/thread_switch.h>
 #include <ipc/ipc_port.h>

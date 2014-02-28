@@ -35,7 +35,6 @@
 #ifndef	_KERN_SCHED_H_
 #define _KERN_SCHED_H_
 
-#include <mach_lotto.h>
 #include <kern/queue.h>
 #include <kern/lock.h>
 #include <kern/kern_types.h>

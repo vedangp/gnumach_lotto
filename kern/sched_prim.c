@@ -33,7 +33,6 @@
  */
 
 #include <kern/printf.h>
-#include <mach_lotto.h>
 #include <mach/machine.h>
 #include <machine/locore.h>
 #include <machine/machspl.h>	/* For def'n of splsched() */
@@ -60,7 +59,7 @@
 #if	MACH_LOTTO
 #include <kern/lotto.h>
 #include <kern/lotto_debug.h>
-#endif	MACH_LOTTO
+#endif	/*MACH_LOTTO*/
 
 #if	MACH_FIXPRI || MACH_LOTTO
 #include <mach/policy.h>
@@ -78,7 +77,7 @@ int		sched_usec;
 
 thread_t	sched_thread_id;
 
-void recompute_priorities(void);	/* forward */
+void recompute_priorities(const void *param);	/* forward */
 void update_priority(thread_t);
 void set_pri(thread_t, int, boolean_t);
 void do_thread_scan(void);
@@ -545,7 +544,7 @@ thread_t thread_select(
 #endif	/* MACH_HOST */
 #if	MACH_LOTTO
 			    (thread->policy != POLICY_LOTTO) && 
-#endif	MACH_LOTTO
+#endif	/*MACH_LOTTO*/
 			    ((thread->bound_processor == PROCESSOR_NULL) ||
 			     (thread->bound_processor == myprocessor))) {
 
@@ -574,7 +573,7 @@ thread_t thread_select(
 				/* prevent overflow */
 				if (pset->runq.low > LAST_VALID_RUNQ)
 				  pset->runq.low = LAST_VALID_RUNQ;
-#endif	MACH_LOTTO
+#endif	/*MACH_LOTTO*/
 				thread = choose_pset_thread(myprocessor, pset);
 			}
 			else {
@@ -592,7 +591,7 @@ thread_t thread_select(
 #if	MACH_LOTTO
 					 /* prevent overflow */
 					 && (pset->runq.low < LAST_VALID_RUNQ)
-#endif	MACH_LOTTO
+#endif	/*MACH_LOTTO*/
 					 ) {
 				    pset->runq.low++;
 				    q++;
@@ -1106,7 +1105,7 @@ void compute_my_priority(
 	    thread->sched_pri = LOTTO_PRIORITY;
 	    return;
 	  }
-#endif	MACH_LOTTO
+#endif /*MACH_LOTTO*/
 	do_priority_computation(thread,temp_pri);
 	thread->sched_pri = temp_pri;
 }
@@ -1290,7 +1289,7 @@ void
 #if	MACH_LOTTO_IPC
   /* unpost ipc xfer, if any */
   lotto_ipc_xfer_unpost(t);
-#endif	MACH_LOTTO_IPC
+#endif	/*MACH_LOTTO_IPC*/
 
   /* acquire lotto lock */
   simple_lock(&pset->lotto_lock);
@@ -1311,7 +1310,7 @@ void
     pset->lotto_quantum_metrics[t->lotto_quantum_used]++;
   else
     pset->lotto_quantum_metrics[LOTTO_QUANTUM_USED_MAX]++;
-#endif	MACH_LOTTO_QUANTUM_METRICS
+#endif	/*MACH_LOTTO_QUANTUM_METRICS*/
 
   /* compensate thread if used less than full quantum */
   if (pset->lotto_quantum_enabled)
@@ -1348,7 +1347,7 @@ void
   /* release lotto lock */
   simple_unlock(&pset->lotto_lock);
 }
-#endif	MACH_LOTTO
+#endif	/*MACH_LOTTO*/
 
 /*
  *	thread_setrun:

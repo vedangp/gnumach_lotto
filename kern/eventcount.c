@@ -37,7 +37,6 @@
 
 #include <kern/printf.h>
 #include <string.h>
-#include <mach_lotto.h>
 #include <mach/machine.h>
 #include <kern/ast.h>
 #include <kern/debug.h>

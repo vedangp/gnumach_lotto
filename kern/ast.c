@@ -35,7 +35,6 @@
  *
  */
 
-#include <mach_lotto.h>
 #include <kern/ast.h>
 #include <kern/counters.h>
 #include <kern/debug.h>

@@ -34,7 +34,6 @@
 #ifndef	_KERN_TASK_H_
 #define _KERN_TASK_H_
 
-#include <mach_lotto.h>
 #include <mach/boolean.h>
 #include <mach/port.h>
 #include <mach/time_value.h>

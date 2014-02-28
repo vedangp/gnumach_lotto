@@ -88,6 +88,7 @@
  *
  */
 
+
 /* ipc subsystem */
 #define	MACH_LOTTO_IPC			(1)
 #define MACH_LOTTO_IPC_METRICS		(1)
@@ -286,9 +287,8 @@ typedef lotto_ipc_xfer *lotto_ipc_xfer_t;
 
 #define LOTTO_ASSERT(cond)			\
   MACRO_BEGIN					\
-  extern void Assert();				\
-  if (!(cond))					\
-    Assert(__FILE__, __LINE__);			\
+  extern void Assert();				\		
+  Assert("cond", __FILE__, __LINE__);			\
   MACRO_END
 
 /*

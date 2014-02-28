@@ -34,7 +34,6 @@
  *	Functions to manipulate IPC message queues.
  */
 
-#include <mach_lotto.h>
 #include <mach/port.h>
 #include <mach/message.h>
 #include <kern/assert.h>

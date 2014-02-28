@@ -34,7 +34,6 @@
 #ifndef	_KERN_THREAD_H_
 #define _KERN_THREAD_H_
 
-#include <mach_lotto.h>
 #include <mach/boolean.h>
 #include <mach/thread_info.h>
 #include <mach/thread_status.h>

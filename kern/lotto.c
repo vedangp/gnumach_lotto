@@ -133,22 +133,25 @@
  *
  */
 
-#include <mach_lotto.h>
 
 #include <kern/thread.h>
 #include <kern/task.h>
-#include <kern/zalloc.h>
+#include <kern/slab.h>
 #include <kern/kalloc.h>
 #include <kern/lotto.h>
 #include <kern/lotto_debug.h>
+#include <kern/printf.h>
+
+
+static lotto_funds_t lotto_currency_value_safe(const lotto_currency_t);
 
 /*
  * module globals
  *
  */
 
-static zone_t	lotto_ticket_zone;
-static zone_t	lotto_currency_zone;
+static struct kmem_cache lotto_ticket_zone;
+static struct kmem_cache lotto_currency_zone;
 
 /*
  * lotto_metrics_info operations
@@ -190,7 +193,7 @@ void
   for (i = 0; i < LOTTO_QUANTUM_METRICS_MAX; i++)
     metrics[i] = 0;
 }
-#endif	MACH_LOTTO_QUANTUM_METRICS
+#endif	/*MACH_LOTTO_QUANTUM_METRICS*/
 
 /*
  * lotto_currency operations
@@ -210,7 +213,7 @@ static lotto_currency_t
   lotto_currency_t new;
 
   /* dynamically allocate memory */
-  new = (lotto_currency_t) zalloc(lotto_currency_zone);
+  new = (lotto_currency_t) kmem_cache_alloc(&lotto_currency_zone);
   /* new = (lotto_currency_t) kalloc(sizeof(lotto_currency)); */
   if (new == LOTTO_CURRENCY_NULL)
     panic("lotto_currency_alloc: no memory");
@@ -233,7 +236,7 @@ static inline void
   
   if (currency->dealloc)
     /* kfree((void *) currency, sizeof(lotto_currency)); */
-    zfree(lotto_currency_zone, (vm_offset_t) currency);
+    kmem_cache_free(&lotto_currency_zone, (vm_offset_t) currency);
 }
 
 void
@@ -464,7 +467,7 @@ static lotto_ticket_t
   lotto_ticket_t new;
   
   /* dynamically allocate memory */
-  new = (lotto_ticket_t) zalloc(lotto_ticket_zone);
+  new = (lotto_ticket_t) kmem_cache_alloc(&lotto_ticket_zone);
   /* new = (lotto_ticket_t) kalloc(sizeof(lotto_ticket)); */
   if (new == LOTTO_TICKET_NULL)
     panic("lotto_ticket_alloc: no memory");
@@ -487,7 +490,7 @@ static inline void
   
   if (ticket->dealloc)
     /* kfree((void *) ticket, sizeof(lotto_ticket)); */
-    zfree(lotto_ticket_zone, (vm_offset_t) ticket);
+    kmem_cache_free(&lotto_ticket_zone, (vm_offset_t) ticket);
 }
 
 void
@@ -613,30 +616,23 @@ void
    */
 
 #if	MACH_LOTTO_DEBUG_VERBOSE
-  (void) printf("lotto_init: about to zinit...\n");
-#endif	MACH_LOTTO_DEBUG_VERBOSE
+  	printf("lotto_init: about to zinit...\n");
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE*/
   
   /* initialize storage zones */
-  lotto_ticket_zone = 
-    zinit(sizeof(lotto_ticket),
-	  LOTTO_TICKET_ZONE_MAX * sizeof(lotto_ticket),
-	  LOTTO_TICKET_ZONE_CHUNK * sizeof(lotto_ticket),
-	  FALSE,
-	  "lotto ticket");
-  lotto_currency_zone =
-    zinit(sizeof(lotto_currency),
-	  LOTTO_CURRENCY_ZONE_MAX * sizeof(lotto_currency),
-	  LOTTO_CURRENCY_ZONE_CHUNK * sizeof(lotto_currency),
-	  FALSE,
-	  "lotto currency");
+    kmem_cache_init(&lotto_ticket_zone, "lotto ticket", sizeof(lotto_ticket),0,
+	  NULL,NULL,NULL,0);
+
+    kmem_cache_init(&lotto_currency_zone,"lotto currency", sizeof(lotto_currency), 0,
+	  NULL,NULL,NULL,0);
   
 #if	MACH_LOTTO_IPC
   lotto_ipc_init();
-#endif	MACH_LOTTO_IPC
+#endif	/*MACH_LOTTO_IPC*/
 
 #if	MACH_LOTTO_DEBUG_VERBOSE
-  (void) printf("lotto_init: done\n");
-#endif	MACH_LOTTO_DEBUG_VERBOSE
+  	printf("lotto_init: done\n");
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE*/
 }
 
 /*
@@ -696,16 +692,16 @@ static lotto_ticket_t
 	  if (ticket->id == id)
 	    {
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-	      (void) printf("lotto_find_ticket: hint succeeded\n");
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1      
+	      printf("lotto_find_ticket: hint succeeded\n");
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1 */     
 	      return(ticket);
 	    }
     }
 
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
   if (issuer_hint != LOTTO_CURRENCY_ID_NULL)
-    (void) printf("lotto_find_ticket: hint failed\n");
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1      
+    printf("lotto_find_ticket: hint failed\n");
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/    
   
   /* search for ticket */
   queue_iterate(&pset->lotto_currencies, currency, lotto_currency_t, chain_pset)
@@ -927,7 +923,7 @@ kern_return_t
   /* everything OK */
   return(KERN_SUCCESS);
 }
-#endif	MACH_LOTTO_QUANTUM_METRICS
+#endif	/*MACH_LOTTO_QUANTUM_METRICS*/
 
 static kern_return_t
   lotto_prim_currency_info
@@ -1092,7 +1088,7 @@ static lotto_funds_t
    *
    */
 
-  static lotto_funds_t lotto_currency_value_safe(const lotto_currency_t);
+  //static lotto_funds_t lotto_currency_value_safe(const lotto_currency_t);
   lotto_funds_t value, currency_value;
   
   /* sanity check */
@@ -1137,8 +1133,8 @@ kern_return_t
   spl_t s;
 
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-  (void) printf("lotto_compute_ticket_value: ticket_id=%d\n", ticket_id);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+  	printf("lotto_compute_ticket_value: ticket_id=%d\n", ticket_id);
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
 
   /* acquire lock */
   LOTTO_LOCK(pset, s);
@@ -1156,10 +1152,10 @@ kern_return_t
   LOTTO_UNLOCK(pset, s);
 
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-  (void) printf("lotto_compute_ticket_value: ticket_id=%d, value=%d\n",
+  	printf("lotto_compute_ticket_value: ticket_id=%d, value=%d\n",
 		ticket_id,
 		*value);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
 
   /* everything OK */
   return(KERN_SUCCESS);
@@ -1185,9 +1181,9 @@ static lotto_funds_t
   if (!currency->activated)
     {
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-      (void) printf("lotto_currency_value_safe: cid=%d, inactive\n",
+     	 printf("lotto_currency_value_safe: cid=%d, inactive\n",
 		    currency->id);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
       return(LOTTO_FUNDS_NULL);
     }
   
@@ -1373,9 +1369,9 @@ kern_return_t
   queue_enter(&pset->lotto_currencies, new, lotto_currency_t, chain_pset);
     
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-  (void) printf("create: ");
+  	printf("create: ");
   lotto_currency_print(new);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
 
   /* set currency */
   *currency = new;
@@ -1535,9 +1531,9 @@ kern_return_t
     return(KERN_INVALID_ARGUMENT);
 
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-  (void) printf("destroy: ");
+  	printf("destroy: ");
   lotto_currency_print(currency);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
 
   /* ensure all tickets denominated in currency already removed */
   if (!queue_empty(&currency->tickets_issued))
@@ -1757,7 +1753,7 @@ void
    *
    */
 
-  lotto_ticket_t ticket;
+  //lotto_ticket_t ticket;
   
   /* ensure thread not already activated */
   LOTTO_ASSERT(!thread->lotto_activated);
@@ -1784,7 +1780,7 @@ void
    *
    */
 
-  lotto_ticket_t ticket;
+  //lotto_ticket_t ticket;
 
   /* ensure thread already activated */
   LOTTO_ASSERT(thread->lotto_activated);
@@ -1830,7 +1826,7 @@ inline lotto_funds_t
       
       /* update metrics: min value count */
       pset->lotto_metrics.min_value_count++;
-#endif	MACH_LOTTO_METRICS
+#endif	/*MACH_LOTTO_METRICS*/
 
       value = LOTTO_FUNDS_MIN;
     }
@@ -1850,7 +1846,7 @@ static void
    *
    */
 
-  lotto_ticket_t ticket;
+  //lotto_ticket_t ticket;
 
   /* ensure thread not already depressed */
   LOTTO_ASSERT(thread->lotto_depressed_amount == LOTTO_FUNDS_NULL);
@@ -1866,7 +1862,7 @@ static void
 #if	MACH_LOTTO_METRICS
       /* update metrics: depress count */
       pset->lotto_metrics.depress_count++;
-#endif	MACH_LOTTO_METRICS
+#endif	/*MACH_LOTTO_METRICS*/
 
       /* zero ticket value, handling activation appropriately */
       if (thread->lotto_activated)
@@ -1924,7 +1920,7 @@ static void
    *
    */
 
-  lotto_ticket_t ticket;
+  //lotto_ticket_t ticket;
 
   /* ensure thread already depressed */
   LOTTO_ASSERT(thread->lotto_depressed_amount != LOTTO_FUNDS_NULL);
@@ -1952,7 +1948,7 @@ static void
 #if	MACH_LOTTO_METRICS
       /* update metrics: undepress count */
       pset->lotto_metrics.undepress_count++;
-#endif	MACH_LOTTO_METRICS
+#endif	/*MACH_LOTTO_METRICS*/
       
       /* maintain lotto priority */
       thread->sched_pri = LOTTO_PRIORITY;
@@ -2044,8 +2040,8 @@ static void
     }
   
 #if	MACH_LOTTO_DEBUG
-  (void) printf("lotto_currency_credit_win: unable to credit win\n");
-#endif	MACH_LOTTO_DEBUG
+  	printf("lotto_currency_credit_win: unable to credit win\n");
+#endif	/*MACH_LOTTO_DEBUG*/
 }
 
 static void
@@ -2205,7 +2201,7 @@ unsigned
 
   return(gen->seed);
 }
-#endif	mips
+#endif	/*mips*/
 
 /*
  * scheduling operations
@@ -2283,9 +2279,9 @@ thread_t
 
 #if	MACH_HOST
   pset = proc->processor_set;
-#else	MACH_HOST
+#else	/*MACH_HOST*/
   pset = &default_pset;
-#endif	MACH_HOST
+#endif	/*MACH_HOST*/
 
   /* initialize */
   current_runnable = FALSE;
@@ -2314,18 +2310,18 @@ thread_t
 
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
   if ((pset->lotto_metrics.select_count & 4095) == 0)
-    (void) printf("lotto_sched_select: select_count = %d\n",
+    	printf("lotto_sched_select: select_count = %d\n",
 		  pset->lotto_metrics.select_count);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
 
-#endif	MACH_LOTTO_METRICS
+#endif	/*MACH_LOTTO_METRICS*/
 
   /* consider current thread, if runnable */
   current = current_thread();
   if ((current->state == TH_RUN) &&
 #ifdef	MACH_HOST
       (current->processor_set == pset) &&
-#endif	MACH_HOST
+#endif	/*MACH_HOST*/
       (current->policy == POLICY_LOTTO) &&
       ((current->bound_processor == PROCESSOR_NULL) ||
        (current->bound_processor == proc)))
@@ -2347,11 +2343,11 @@ thread_t
       /* update metrics: search count */
       if (attempt > 1)
 	pset->lotto_metrics.search_count += count;
-#endif	MACH_LOTTO_METRICS
+#endif	/*MACH_LOTTO_METRICS*/
 
 #if	MACH_LOTTO_DEBUG_VERBOSE 
       if (attempt > 2)
-	(void) printf("lotto_sched_select: "
+		printf("lotto_sched_select: "
 		      "attempt = %u, "
 		      "total = %u, "
 		      "winner = %u, "
@@ -2362,7 +2358,7 @@ thread_t
 		      winner,
 		      sum,
 		      count);
-#endif	MACH_LOTTO_DEBUG_VERBOSE 
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE*/ 
 
       /* should never exceed two attempts since computed sum used on retry */
       LOTTO_ASSERT(attempt <= 2);
@@ -2382,8 +2378,8 @@ thread_t
 	  /* use actual computed sum from previous attempt */
 	  total = sum;
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-	  (void) printf("lotto_sched_select: using computed sum=%d\n", sum);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+	 	printf("lotto_sched_select: using computed sum=%d\n", sum);
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
 	}
       
       /* zero total => idle (avoid division by zero) */
@@ -2394,12 +2390,12 @@ thread_t
       winner = lotto_random_next(&pset->lotto_rnd) % total;
       
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-      (void) printf("lotto_sched_select: "
+      printf("lotto_sched_select: "
                     "total = %u, "
 		    "winner = %u\n", 
 		    total,
 		    winner);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
 
       /* search for winner */
       
@@ -2419,7 +2415,7 @@ thread_t
 	      pset->lotto_last_selected = selected;
 #if	MACH_LOTTO_CREDIT_WIN
 	      lotto_thread_credit_win(pset, selected);
-#endif	MACH_LOTTO_CREDIT_WIN
+#endif	/*MACH_LOTTO_CREDIT_WIN*/
 	      lotto_quantum_reset(selected);
 	    }
 	}
@@ -2443,12 +2439,12 @@ thread_t
 #if	MACH_LOTTO_DEBUG_VERBOSE  
 	  /* consistency check */
 	  if (pset->lotto_count != pset_runq->lotto_count)
-	    (void) printf("lotto_sched_select: lotto count mismatch: "
+	   	 printf("lotto_sched_select: lotto count mismatch: "
 			  "pset = %d, "
 			  "lotto = %d\n",
 			  pset->lotto_count,
 			  pset_runq->lotto_count);
-#endif	MACH_LOTTO_DEBUG_VERBOSE
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE*/
 	  
 	  /* search pset runq for winner */
 	  queue_iterate(pset_runq_lotto, thread, thread_t, links)
@@ -2466,7 +2462,7 @@ thread_t
 		  pset->lotto_last_selected = selected;
 #if	MACH_LOTTO_CREDIT_WIN
 		  lotto_thread_credit_win(pset, selected);
-#endif	MACH_LOTTO_CREDIT_WIN
+#endif	/*MACH_LOTTO_CREDIT_WIN*/
 		  lotto_quantum_reset(selected);
 		  queue_remove(pset_runq_lotto, selected, thread_t, links);
 		  /* lotto_thread_deactivate(selected); */
@@ -2514,7 +2510,7 @@ thread_t
 		  pset->lotto_last_selected = selected;
 #if	MACH_LOTTO_CREDIT_WIN
 		  lotto_thread_credit_win(pset, selected);
-#endif	MACH_LOTTO_CREDIT_WIN
+#endif	/*MACH_LOTTO_CREDIT_WIN*/
 		  lotto_quantum_reset(selected);
 		  queue_remove(proc_runq_lotto, selected, thread_t, links);
 		  /* lotto_thread_deactivate(selected); */
@@ -2531,13 +2527,13 @@ thread_t
 	}
 
 #if	MACH_LOTTO_DEBUG_VERBOSE > 1
-      (void) printf("lotto_sched_select: "
+      		printf("lotto_sched_select: "
 		    "count=%d, total=%u, winner=%u, selected = %x\n",
 		    count, 
 		    total,
 		    winner,
 		    selected);
-#endif	MACH_LOTTO_DEBUG_VERBOSE > 1
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE > 1*/
 
     } while (selected == THREAD_NULL && count > 0);
   
@@ -2548,7 +2544,7 @@ thread_t
 
   /* update metrics: search count */
   pset->lotto_metrics.search_count += count;
-#endif	MACH_LOTTO_METRICS
+#endif	/*MACH_LOTTO_METRICS*/
 
   /* release lotto lock */
   simple_unlock(&pset->lotto_lock);
@@ -2577,7 +2573,7 @@ void
    *
    */
 
-  (void) printf("[currency: "
+  	printf("[currency: "
 		"name = %s, "
 		"id = %u, "
 		"activated = %d, "
@@ -2598,7 +2594,7 @@ void
    *
    */
 
-  (void) printf("[ticket: "
+  	printf("[ticket: "
 		"id = %u, "
 		"currency = %u, "
 		"amount = %u, "
@@ -2608,7 +2604,7 @@ void
 		ticket->amount,
 		ticket->owner_currency);
 }
-#endif	MACH_LOTTO_DEBUG
+#endif	/*MACH_LOTTO_DEBUG*/
 
 #if	MACH_LOTTO_IPC
 /*
@@ -2620,7 +2616,7 @@ void
 decl_simple_lock_data(static, lotto_ipc_lock)
 static queue_head_t lotto_ipc_queue;
 static lotto_ipc_metrics_info lotto_ipc_metrics_data;
-static zone_t lotto_ipc_xfer_zone;
+static struct kmem_cache lotto_ipc_xfer_zone;
 boolean_t lotto_ipc_enabled;
 
 /*
@@ -2729,16 +2725,12 @@ void
   lotto_ipc_metrics_init(&lotto_ipc_metrics_data);
 
   /* initialize storage zone */
-  lotto_ipc_xfer_zone =
-    zinit(sizeof(lotto_ipc_xfer),
-	  LOTTO_IPC_XFER_ZONE_MAX * sizeof(lotto_ipc_xfer),
-	  LOTTO_IPC_XFER_ZONE_CHUNK * sizeof(lotto_ipc_xfer),
-	  FALSE,
-	  "lotto ipc xfer");
+    kmem_cache_init(&lotto_ipc_xfer_zone, "lotto ipc xfer" , sizeof(lotto_ipc_xfer),0, 
+	  NULL, NULL, NULL, 0);
 
 #if	MACH_LOTTO_DEBUG_VERBOSE
-  (void) printf("lotto_ipc_init: done\n");
-#endif	MACH_LOTTO_DEBUG_VERBOSE
+  	printf("lotto_ipc_init: done\n");
+#endif	/*MACH_LOTTO_DEBUG_VERBOSE*/
 }
 
 static lotto_ipc_xfer_t
@@ -2754,7 +2746,7 @@ static lotto_ipc_xfer_t
   lotto_ipc_xfer_t new;
 
   /* dynamically allocate memory */
-  new = (lotto_ipc_xfer_t) zalloc(lotto_ipc_xfer_zone);
+  new = (lotto_ipc_xfer_t) kmem_cache_alloc(&lotto_ipc_xfer_zone);
   /* new = (lotto_ipc_xfer_t) kalloc(sizeof(lotto_ipc_xfer)); */
   if (new == LOTTO_IPC_XFER_NULL)
     panic("lotto_ipc_xfer_alloc: no memory");
@@ -2773,7 +2765,7 @@ static inline void
    */
 
   /* kfree((void *) xfer, sizeof(lotto_ipc_xfer)); */
-  zfree(lotto_ipc_xfer_zone, (vm_offset_t) xfer);
+  kmem_cache_free(&lotto_ipc_xfer_zone, (vm_offset_t) xfer);
 }
 
 void
@@ -2859,7 +2851,7 @@ boolean_t
       LOTTO_IPC_LOCK();
       lotto_ipc_metrics_data.complex_request_count++;
       LOTTO_IPC_UNLOCK();
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
 
       return(TRUE);
     }
@@ -2893,7 +2885,7 @@ boolean_t
       LOTTO_IPC_LOCK();
       lotto_ipc_metrics_data.complex_reply_count++;
       LOTTO_IPC_UNLOCK();
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
 
       return(TRUE);
     }
@@ -2922,7 +2914,7 @@ lotto_ipc_xfer_t
 #if	MACH_LOTTO_IPC_METRICS
       /* update metrics */
       lotto_ipc_metrics_data.search_count++;
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
       
       /* return xfer if appropriate header fields match */
       if ((xfer->header.msgh_remote_port == header->msgh_remote_port) &&
@@ -2933,7 +2925,7 @@ lotto_ipc_xfer_t
   
 #if	MACH_LOTTO_IPC_METRICS
   lotto_ipc_metrics_data.search_fail_count++;
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
 
   /* not found */
   return(LOTTO_IPC_XFER_NULL);
@@ -2971,7 +2963,7 @@ void
 #if	MACH_LOTTO_IPC_METRICS
       /* update metrics */
       lotto_ipc_metrics_data.post_after_post_count++;
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
       
       lotto_ipc_prim_xfer_unpost(thread);
     }
@@ -2982,7 +2974,7 @@ void
 #if	MACH_LOTTO_IPC_METRICS
   /* update metrics */
   lotto_ipc_metrics_data.post_count++;
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
   
   /* create xfer */
   xfer = lotto_ipc_xfer_create(LOTTO_IPC_POST, header);
@@ -3074,7 +3066,7 @@ void
     lotto_ipc_metrics_data.unpost_after_other_count++;
     break;
   }
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
 
   /* remove xfer from queue */
   if (xfer->state == LOTTO_IPC_POST)
@@ -3162,7 +3154,7 @@ void
 #if	MACH_LOTTO_IPC_METRICS
       /* update metrics */
       lotto_ipc_metrics_data.take_after_post_count++;
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
 
       lotto_ipc_prim_xfer_unpost(thread);
     }
@@ -3180,7 +3172,7 @@ void
 #if	MACH_LOTTO_IPC_METRICS
   /* update metrics */
   lotto_ipc_metrics_data.take_count++;
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
   
   /* return previous xfer; disallow nested takes */
   if (thread->lotto_ipc_recv != LOTTO_IPC_XFER_NULL)
@@ -3188,7 +3180,7 @@ void
 #if	MACH_LOTTO_IPC_METRICS
       /* update metrics */
       lotto_ipc_metrics_data.take_after_take_count++;
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
       
       lotto_ipc_prim_xfer_return(thread);
     }
@@ -3266,7 +3258,7 @@ void
 #if	MACH_LOTTO_IPC_METRICS
   /* update metrics */
   lotto_ipc_metrics_data.return_count++;
-#endif	MACH_LOTTO_IPC_METRICS
+#endif	/*MACH_LOTTO_IPC_METRICS*/
 
   /* sanity checks */
   LOTTO_ASSERT(xfer->receiver == thread);
@@ -3334,4 +3326,4 @@ void
   /* release lotto ipc lock */
   LOTTO_IPC_UNLOCK();
 }
-#endif	MACH_LOTTO_IPC
+#endif	/*MACH_LOTTO_IPC*/
