@@ -23,4 +23,4 @@
 
 #define KERNEL_SERVER 1
 
-#include <mach/mach_host.defs>
+#include <mach/mach_lotto.defs>
