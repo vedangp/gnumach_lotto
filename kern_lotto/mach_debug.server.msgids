@@ -1,0 +1,14 @@
+mach_debug 3000 mach_port_get_srights 7 3007 3107
+mach_debug 3000 host_ipc_hash_info 8 3008 3108
+mach_debug 3000 host_ipc_marequest_info 9 3009 3109
+mach_debug 3000 mach_port_space_info 10 3010 3110
+mach_debug 3000 mach_port_dnrequest_info 11 3011 3111
+mach_debug 3000 host_stack_usage 14 3014 3114
+mach_debug 3000 processor_set_stack_usage 15 3015 3115
+mach_debug 3000 host_virtual_physical_table_info 16 3016 3116
+mach_debug 3000 host_load_symbol_table 17 3017 3117
+mach_debug 3000 mach_port_kernel_object 18 3018 3118
+mach_debug 3000 mach_vm_region_info 19 3019 3119
+mach_debug 3000 mach_vm_object_info 20 3020 3120
+mach_debug 3000 mach_vm_object_pages 21 3021 3121
+mach_debug 3000 host_slab_info 22 3022 3122

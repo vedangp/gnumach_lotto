@@ -1,0 +1,3 @@
+experimental 424242 device_intr_register 1 424243 424343
+experimental 424242 device_intr_enable 2 424244 424344
+experimental 424242 vm_allocate_contiguous 3 424245 424345

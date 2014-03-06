@@ -1,0 +1,24 @@
+kern/printf.o: kern/printf.c config.h include/string.h \
+ include/sys/types.h mach/machine/vm_types.h device/cons.h kern/printf.h \
+ i386/include/mach/sa/stdarg.h include/mach/boolean.h \
+ mach/machine/boolean.h kern/lock.h
+
+config.h:
+
+include/string.h:
+
+include/sys/types.h:
+
+mach/machine/vm_types.h:
+
+device/cons.h:
+
+kern/printf.h:
+
+i386/include/mach/sa/stdarg.h:
+
+include/mach/boolean.h:
+
+mach/machine/boolean.h:
+
+kern/lock.h:

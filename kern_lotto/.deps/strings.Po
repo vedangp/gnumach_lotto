@@ -1,0 +1,10 @@
+kern/strings.o: kern/strings.c config.h include/string.h \
+ include/sys/types.h mach/machine/vm_types.h
+
+config.h:
+
+include/string.h:
+
+include/sys/types.h:
+
+mach/machine/vm_types.h:

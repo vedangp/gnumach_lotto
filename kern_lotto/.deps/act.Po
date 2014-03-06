@@ -1,0 +1,3 @@
+kern/act.o: kern/act.c config.h
+
+config.h:

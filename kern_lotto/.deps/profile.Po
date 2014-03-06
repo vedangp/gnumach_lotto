@@ -1,0 +1,3 @@
+kern/profile.o: kern/profile.c config.h
+
+config.h:

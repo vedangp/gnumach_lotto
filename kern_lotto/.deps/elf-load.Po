@@ -1,0 +1,17 @@
+kern/elf-load.o: kern/elf-load.c config.h include/alloca.h \
+ mach/machine/vm_types.h include/mach/exec/elf.h mach/machine/exec/elf.h \
+ include/mach/exec/exec.h include/mach/vm_prot.h
+
+config.h:
+
+include/alloca.h:
+
+mach/machine/vm_types.h:
+
+include/mach/exec/elf.h:
+
+mach/machine/exec/elf.h:
+
+include/mach/exec/exec.h:
+
+include/mach/vm_prot.h:

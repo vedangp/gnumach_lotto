@@ -1,0 +1,66 @@
+kern/mach_factor.o: kern/mach_factor.c config.h include/mach/machine.h \
+ mach/machine/vm_types.h include/mach/boolean.h mach/machine/boolean.h \
+ include/mach/processor_info.h kern/mach_clock.h \
+ mach/machine/kern_return.h include/mach/time_value.h kern/host.h \
+ kern/queue.h kern/lock.h kern/sched.h kern/kern_types.h \
+ include/mach/port.h kern/macro_help.h include/mach/policy.h \
+ kern/processor.h include/mach/kern_return.h kern/cpu_number.h \
+ kern/lotto.h machine/machspl.h i386/i386/spl.h i386/i386/ipl.h \
+ include/mach/message.h include/mach/mach_lotto_types.h \
+ kern/mach_factor.h include/sys/types.h
+
+config.h:
+
+include/mach/machine.h:
+
+mach/machine/vm_types.h:
+
+include/mach/boolean.h:
+
+mach/machine/boolean.h:
+
+include/mach/processor_info.h:
+
+kern/mach_clock.h:
+
+mach/machine/kern_return.h:
+
+include/mach/time_value.h:
+
+kern/host.h:
+
+kern/queue.h:
+
+kern/lock.h:
+
+kern/sched.h:
+
+kern/kern_types.h:
+
+include/mach/port.h:
+
+kern/macro_help.h:
+
+include/mach/policy.h:
+
+kern/processor.h:
+
+include/mach/kern_return.h:
+
+kern/cpu_number.h:
+
+kern/lotto.h:
+
+machine/machspl.h:
+
+i386/i386/spl.h:
+
+i386/i386/ipl.h:
+
+include/mach/message.h:
+
+include/mach/mach_lotto_types.h:
+
+kern/mach_factor.h:
+
+include/sys/types.h:

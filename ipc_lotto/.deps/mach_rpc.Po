@@ -1,0 +1,3 @@
+ipc/mach_rpc.o: ipc/mach_rpc.c config.h
+
+config.h:
