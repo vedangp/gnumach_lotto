@@ -1,0 +1,14 @@
+kern/queue.o: kern/queue.c config.h kern/queue.h kern/lock.h \
+ include/mach/boolean.h mach/machine/boolean.h mach/machine/vm_types.h
+
+config.h:
+
+kern/queue.h:
+
+kern/lock.h:
+
+include/mach/boolean.h:
+
+mach/machine/boolean.h:
+
+mach/machine/vm_types.h:

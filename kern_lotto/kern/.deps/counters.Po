@@ -1,0 +1,5 @@
+kern/counters.o: kern/counters.c config.h kern/counters.h
+
+config.h:
+
+kern/counters.h:

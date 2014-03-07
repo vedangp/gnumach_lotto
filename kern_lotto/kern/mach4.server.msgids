@@ -1,0 +1,7 @@
+mach4 4000 task_enable_pc_sampling 0 4000 4100
+mach4 4000 task_disable_pc_sampling 1 4001 4101
+mach4 4000 task_get_sampled_pcs 2 4002 4102
+mach4 4000 thread_enable_pc_sampling 3 4003 4103
+mach4 4000 thread_disable_pc_sampling 4 4004 4104
+mach4 4000 thread_get_sampled_pcs 5 4005 4105
+mach4 4000 memory_object_create_proxy 10 4010 4110

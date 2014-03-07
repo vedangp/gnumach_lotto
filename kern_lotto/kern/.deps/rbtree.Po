@@ -1,0 +1,26 @@
+kern/rbtree.o: kern/rbtree.c config.h kern/assert.h kern/macro_help.h \
+ include/mach/boolean.h mach/machine/boolean.h kern/rbtree.h \
+ include/stddef.h include/sys/types.h mach/machine/vm_types.h \
+ kern/rbtree_i.h kern/rbtree_i.h
+
+config.h:
+
+kern/assert.h:
+
+kern/macro_help.h:
+
+include/mach/boolean.h:
+
+mach/machine/boolean.h:
+
+kern/rbtree.h:
+
+include/stddef.h:
+
+include/sys/types.h:
+
+mach/machine/vm_types.h:
+
+kern/rbtree_i.h:
+
+kern/rbtree_i.h:

@@ -1,0 +1,14 @@
+kern/lib_dep_tr_for_defs_a-mach_host.server.defs.o: \
+ kern/mach_host.server.defs.c config.h include/mach/mach_host.defs \
+ include/mach/std_types.defs mach/machine/machine_types.defs \
+ include/mach/mach_types.defs
+
+config.h:
+
+include/mach/mach_host.defs:
+
+include/mach/std_types.defs:
+
+mach/machine/machine_types.defs:
+
+include/mach/mach_types.defs:

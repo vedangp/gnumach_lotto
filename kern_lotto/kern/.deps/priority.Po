@@ -1,0 +1,151 @@
+kern/priority.o: kern/priority.c config.h include/mach/boolean.h \
+ mach/machine/boolean.h include/mach/kern_return.h \
+ mach/machine/kern_return.h include/mach/machine.h \
+ mach/machine/vm_types.h kern/host.h kern/mach_clock.h \
+ include/mach/time_value.h kern/queue.h kern/lock.h kern/sched.h \
+ kern/kern_types.h include/mach/port.h kern/macro_help.h \
+ include/mach/policy.h kern/sched_prim.h include/mach/message.h \
+ kern/thread.h include/mach/thread_info.h include/mach/thread_status.h \
+ mach/machine/thread_status.h mach/machine/fp_reg.h \
+ include/mach/vm_prot.h kern/ast.h kern/cpu_number.h machine/ast.h \
+ kern/cpu_number.h kern/pc_sample.h include/mach/pc_sample.h \
+ kern/processor.h include/mach/processor_info.h kern/lotto.h \
+ machine/machspl.h i386/i386/spl.h i386/i386/ipl.h \
+ include/mach/mach_lotto_types.h kern/timer.h kern/task.h \
+ include/mach/mach_param.h include/mach/task_info.h \
+ kern/syscall_emulation.h vm/vm_types.h machine/task.h kern/slab.h \
+ kern/list.h include/stddef.h include/sys/types.h kern/rbtree.h \
+ kern/assert.h kern/rbtree_i.h machine/thread.h i386/i386/tss.h \
+ include/mach/inline.h machine/io_perm.h device/dev_hdr.h ipc/ipc_types.h \
+ device/conf.h machine/gdt.h machine/seg.h include/mach/xen.h \
+ ipc/ipc_kmsg_queue.h kern/time_stamp.h machine/time_stamp.h
+
+config.h:
+
+include/mach/boolean.h:
+
+mach/machine/boolean.h:
+
+include/mach/kern_return.h:
+
+mach/machine/kern_return.h:
+
+include/mach/machine.h:
+
+mach/machine/vm_types.h:
+
+kern/host.h:
+
+kern/mach_clock.h:
+
+include/mach/time_value.h:
+
+kern/queue.h:
+
+kern/lock.h:
+
+kern/sched.h:
+
+kern/kern_types.h:
+
+include/mach/port.h:
+
+kern/macro_help.h:
+
+include/mach/policy.h:
+
+kern/sched_prim.h:
+
+include/mach/message.h:
+
+kern/thread.h:
+
+include/mach/thread_info.h:
+
+include/mach/thread_status.h:
+
+mach/machine/thread_status.h:
+
+mach/machine/fp_reg.h:
+
+include/mach/vm_prot.h:
+
+kern/ast.h:
+
+kern/cpu_number.h:
+
+machine/ast.h:
+
+kern/cpu_number.h:
+
+kern/pc_sample.h:
+
+include/mach/pc_sample.h:
+
+kern/processor.h:
+
+include/mach/processor_info.h:
+
+kern/lotto.h:
+
+machine/machspl.h:
+
+i386/i386/spl.h:
+
+i386/i386/ipl.h:
+
+include/mach/mach_lotto_types.h:
+
+kern/timer.h:
+
+kern/task.h:
+
+include/mach/mach_param.h:
+
+include/mach/task_info.h:
+
+kern/syscall_emulation.h:
+
+vm/vm_types.h:
+
+machine/task.h:
+
+kern/slab.h:
+
+kern/list.h:
+
+include/stddef.h:
+
+include/sys/types.h:
+
+kern/rbtree.h:
+
+kern/assert.h:
+
+kern/rbtree_i.h:
+
+machine/thread.h:
+
+i386/i386/tss.h:
+
+include/mach/inline.h:
+
+machine/io_perm.h:
+
+device/dev_hdr.h:
+
+ipc/ipc_types.h:
+
+device/conf.h:
+
+machine/gdt.h:
+
+machine/seg.h:
+
+include/mach/xen.h:
+
+ipc/ipc_kmsg_queue.h:
+
+kern/time_stamp.h:
+
+machine/time_stamp.h:
