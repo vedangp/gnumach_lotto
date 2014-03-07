@@ -618,7 +618,8 @@ thread_t thread_select(
 		}
 
 #if	MACH_FIXPRI || MACH_LOTTO
-		if (thread->policy == POLICY_TIMESHARE) {
+		/* CAW: changed from == TS to != FP */
+		if (thread->policy != POLICY_FIXEDPRI) {
 #endif	/* MACH_FIXPRI || MACH_LOTTO */
 			myprocessor->quantum = pset->set_quantum;
 #if	MACH_FIXPRI || MACH_LOTTO
@@ -1962,7 +1963,8 @@ retry:
 			 *	set up quantum for new thread.
 			 */
 #if	MACH_FIXPRI
-			if (new_thread->policy == POLICY_TIMESHARE) {
+			/* CAW: changed from == TS to != FP */
+			if (new_thread->policy != POLICY_FIXEDPRI) {
 #endif	/* MACH_FIXPRI */
 				/*
 				 *  Just use set quantum.  No point in

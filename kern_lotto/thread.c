@@ -1999,12 +1999,12 @@ Restart:
 	/*
 	 *	Reset policy and priorities if needed.
 	 */
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 	if (thread->policy & new_pset->policies == 0) {
 	    thread->policy = POLICY_TIMESHARE;
 	    recompute_pri = TRUE;
 	}
-#endif	/* MACH_FIXPRI */
+#endif	MACH_FIXPRI || MACH_LOTTO
 
 	if (thread->max_priority < new_pset->max_priority) {
 	    thread->max_priority = new_pset->max_priority;

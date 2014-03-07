@@ -161,7 +161,8 @@ void thread_quantum_update(mycpu, thread, nticks, state)
 			else {
 			    if (
 #if	MACH_FIXPRI
-				(thread->policy == POLICY_TIMESHARE) &&
+				/* CAW: changed from == TS to != FP */
+				(thread->policy != POLICY_FIXEDPRI) &&
 #endif	/* MACH_FIXPRI */
 				(thread->depress_priority < 0)) {
 				    thread_timer_delta(thread);
@@ -178,7 +179,8 @@ void thread_quantum_update(mycpu, thread, nticks, state)
 			 */
 			myprocessor->first_quantum = FALSE;
 #if	MACH_FIXPRI
-			if (thread->policy == POLICY_TIMESHARE) {
+			/* CAW: changed from == TS to != FP */
+			if (thread->policy != POLICY_FIXEDPRI) {
 #endif	/* MACH_FIXPRI */
 				myprocessor->quantum += quantum;
 #if	MACH_FIXPRI
@@ -209,7 +211,8 @@ void thread_quantum_update(mycpu, thread, nticks, state)
 		    else {
 			if (
 #if	MACH_FIXPRI
-			    (thread->policy == POLICY_TIMESHARE) &&
+			    /* CAW: changed from == TS to != FP */
+			    (thread->policy != POLICY_FIXEDPRI) &&
 #endif	/* MACH_FIXPRI */
 			    (thread->depress_priority < 0)) {
 				thread_timer_delta(thread);

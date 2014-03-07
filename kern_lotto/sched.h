@@ -40,7 +40,7 @@
 #include <kern/kern_types.h>
 #include <kern/macro_help.h>
 
-#if	MACH_FIXPRI
+#if	MACH_FIXPRI || MACH_LOTTO
 #include <mach/policy.h>
 #endif	/* MACH_FIXPRI */
 
