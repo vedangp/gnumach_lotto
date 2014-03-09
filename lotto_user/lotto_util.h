@@ -49,13 +49,16 @@
 #include <mach.h>
 #include <mach_error.h>
 
-#include <mach/mach_host.h>
-#include <mach/mach_traps.h>
+#include <sys/types.h>
 
-#include <servers/netname.h>
-#include <servers/machid.h>
-#include <servers/machid_types.h>
-#include <servers/machid_lib.h>
+#include <mach/mach_host.h>
+#include <mach/mach_lotto.h>
+#include <mach/mach_traps.h>
+#include "mach_lotto.h"
+//#include <servers/netname.h>
+//#include <servers/machid.h>
+//#include <servers/machid_types.h>
+//#include <servers/machid_lib.h>
 
 #include <mach/mach_lotto_types.h>
 

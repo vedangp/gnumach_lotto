@@ -59,7 +59,7 @@ static mach_port_t machid_auth_port;
  * machid operations
  *
  */
-
+#if 0
 static kern_return_t
   lotto_machid_init
   (void)
@@ -90,7 +90,7 @@ static kern_return_t
   /* everything OK */
   return(KERN_SUCCESS);
 }
-
+#endif
 
 /*
  * utility operations
@@ -111,26 +111,31 @@ kern_return_t
    *
    */
 
-  mach_port_t auth, default_pset, pset;
+  host_t auth;
+ // mach_port_t auth, pset;
   kern_return_t result;
+	
+  processor_set_name_t default_pset, pset;
 
   /* obtain priv host port */
-  auth = mach_host_priv_self();
-  if (!MACH_PORT_VALID(auth))
-    {
+ // auth = mach_host_priv_self();
+ // if (!MACH_PORT_VALID(auth))
+   // {
       /* fail if unable and need priv */
-      if (need_privileged)
+       if (need_privileged)
 	return(KERN_FAILURE);
       
       /* fallback to unprivileged auth */
-      auth = mach_task_self();
-    }
+      auth = mach_host_self();
+  //  }
   
   /* obtain default pset port */
+  printf("Get Default pset for auth %d\n",auth);
   result = processor_set_default(auth, &default_pset);
   if (result != KERN_SUCCESS)
     return(result);
   
+  printf("Get Default pset for auth %d\n",auth);
   /* obtain priv pset port */
   result = host_processor_set_priv(auth, default_pset, &pset);
   if (result != KERN_SUCCESS)
@@ -194,7 +199,8 @@ kern_return_t
       
       /* convert Unix pid => Mach task */
       pid = atoi(name + 3);
-      task = task_by_pid(pid);
+      task = syscall(-33,pid); //task_by_pid(pid);
+      printf("task_by_pid: %d\n",task);
       if (!MACH_PORT_VALID(task))
 	return(KERN_FAILURE);
       
@@ -206,26 +212,26 @@ kern_return_t
   if (strncmp(name, "mid", 3) == 0)
     {
       kern_return_t result;
-      mach_type_t type;
+     // mach_type_t type;
       thread_t thread;
       task_t task;
-      mach_id_t mid;
+    //  mach_id_t mid;
 
       /* initialize machid interface */
-      if (lotto_machid_init() != KERN_SUCCESS)
-	return(KERN_FAILURE);
+    //  if (lotto_machid_init() != KERN_SUCCESS)
+//	return(KERN_FAILURE);
 
       /* determine type of mach object */
-      mid = atoi(name + 3);
-      result = machid_mach_type(machid_server_port, 
+     // mid = atoi(name + 3);
+    /*  result = machid_mach_type(machid_server_port, 
 				machid_auth_port,
 				mid,
 				&type);
-      if (result != KERN_SUCCESS)
+      */if (result != KERN_SUCCESS)
 	return(result);
       
       /* convert mach task or thread => currency */
-      switch (type) {
+  /*    switch (type) {
       case MACH_TYPE_TASK:
 	result = machid_mach_port(machid_server_port,
 				  machid_auth_port,
@@ -244,7 +250,7 @@ kern_return_t
 	return(lotto_currency_by_thread(pset, thread, currency_id));
       default:
 	return(KERN_FAILURE);
-      }
+      }*/
     }
   
   /* lookup currency by name */

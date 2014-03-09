@@ -61,16 +61,20 @@ int main
 
   /* fail if bad usage */
   if (argc < 2)
-    quit(EXIT_FAILURE, 
-	 "usage: %s <name>...\n",
+  {
+   // quit(EXIT_FAILURE, 
+	printf( "usage: %s <name>...\n",
 	 argv[0]);
-
+  	 exit(-1);
+  }
   /* obtain pset port */
   result = lotto_pset_port(&pset, FALSE);
   if (result != KERN_SUCCESS)
-    quit(EXIT_FAILURE,
-	 "mkcur: lotto_pset_port: %s\n",
-	 mach_error_string(result));
+  {	 
+	printf("mkcur: lotto_pset_port: %s\n",
+ 	 mach_error_string(result));
+	exit(-1);
+  }
 
   /* create currency for each specified <name> */
   for (arg = 1; arg < argc; arg++)
@@ -82,12 +86,13 @@ int main
       (void) strncpy(name, argv[arg], LOTTO_CURRENCY_NAME_MAX);
       
       /* create currency */
-      result = lotto_create_currency(pset, name, &id);
+      // result = lotto_create_currency(pset, name, &id);
       if (result != KERN_SUCCESS)
-	quit(EXIT_FAILURE,
-	     "mkcur: lotto_create_currency: %s\n",
+      {
+	   printf(  "mkcur: lotto_create_currency: %s\n",
 	     mach_error_string(result));
-      
+           exit(-1);
+      }
       /* inform user */
       (void) printf("mkcur: created currency cid%u\n", id);
     }

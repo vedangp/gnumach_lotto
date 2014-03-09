@@ -59,17 +59,19 @@ int main
 
   /* fail if bad usage */
   if (argc < 2)
-    quit(EXIT_FAILURE, 
-	 "usage: %s <currency>...\n",
+  {
+	printf( "usage: %s <currency>...\n",
 	 argv[0]);
-
+	exit(-1);
+  }
   /* obtain pset port */
   result = lotto_pset_port(&pset, FALSE);
   if (result != KERN_SUCCESS)
-    quit(EXIT_FAILURE,
-	 "lstkt: lotto_pset_port: %s\n",
+  {
+	printf( "lstkt: lotto_pset_port: %s\n",
 	 mach_error_string(result));
-
+	exit(-1);
+    }
   /* list tickets for each specified currency */
   for (arg = 1; arg < argc; arg++)
     {
@@ -83,10 +85,11 @@ int main
       /* parse command-line argument */
       result = lotto_parse_currency(pset, argv[arg], &id);
       if (result != KERN_SUCCESS)
-	quit(EXIT_FAILURE,
-	     "lstkt: lotto_parse_currency: %s\n",
-	     mach_error_string(result));
-      
+      {   
+	printf ( "lstkt: lotto_parse_currency: %s\n",
+  	     mach_error_string(result));
+	exit(-1);
+      }    
       /* initialize */
       tickets_count = LOTTO_TICKET_INFO_MAX;
 
@@ -98,10 +101,11 @@ int main
 				   tickets,
 				   &tickets_count);
       if (result != KERN_SUCCESS)
-	quit(EXIT_FAILURE,
-	     "lstkt: lotto_currency_info: %s\n",
+	{
+	     printf("lstkt: lotto_currency_info: %s\n",
 	     mach_error_string(result));
-      
+		exit(-1);
+      }
       /* list currency id, name */
       (void) printf("currency #%4u (%s): %8u wins\n",
 		    id,
